@@ -160,7 +160,7 @@ private:
     std::string DualDigit(uint8_t num);
     void Log(std::string message, uint8_t colour=15);
 
-	//Peers and connections related stuff
+    //Peers and connections related stuff
     void DropConnection(uint16_t ID);
     void DenyConnection(uint16_t ID, const std::string& Reason);
     void DenyNameChange(uint16_t ID, const std::string& Name, const std::string& Reason);
