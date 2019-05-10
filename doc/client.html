@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>RedRelay Documentation</title>
+	<style>
+		body {
+			background-color: rgb(240,240,240);
+			font-family: 'Roboto Light', sans-serif;
+			padding: 0px;
+			padding-left:8px;
+			padding-right:8px;
+			padding-bottom:16px;
+			margin: 0px;
+		}
+		a {
+			text-decoration: none;
+			color: rgb(30,30,30);
+		}
+		h1 {
+			font-size: 36px;
+			text-align: center;
+		}
+		h5 {
+			font-size: 24px;
+			margin: 4px;
+		}
+		p {
+			display: inline;
+		}
+		li {
+			list-style-type: none;
+		}
+		.red {
+			color: rgb(140,0,0);
+		}
+		.grey {
+			color: rgb(120,120,120);
+		}
+		.center {
+			text-align: center;
+		}
+		.rel {
+			background-color: rgba(255,255,255,0.5);
+			color: rgb(30,30,30);
+			border-radius: 4px;
+			margin-left: 16px;
+			margin-right: 16px;
+			margin-top: 4px;
+			margin-bottom: 4px; 
+			padding: 16px;
+		}
+		.rel:hover {
+			background-color: rgba(255,255,255,1);
+		}
+		.container {
+			background-color: rgb(255,255,255);
+			color: rgb(30,30,30);
+			border-radius: 4px;
+			margin-left: 16px;
+			margin-right: 16px;
+			padding: 16px;
+			box-shadow: 0px 2px 20px 1px rgba(140,0,0,0.1), 0px 2px 2px 1px rgba(140,0,0,0.1);
+		}
+	</style>
+	<meta charset="utf-8">
+</head>
+<body>
+	<h1> Documentation for <span class="red">Red</span>Relay Client </h1>
+		<div class="center" style="font-size:20px;"> Client side of the <span class = "red">Red</span>Relay library<br>
+		Plain text version of documentation can be found <a href="documentation.txt"><span class = "red">here</span></a>
+		</div> <br>
+		Classes:
+		<a href="#rc_client"> <div class = "rel">  rc::RedRelayClient </div> </a>
+		<a href="#rc_event"> <div class = "rel">  rc::Event </div> </a>
+		<a href="#rc_binary"> <div class = "rel">  rc::Binary </div> </a>
+		<a href="#rc_channel"> <div class = "rel">  rc::Channel </div> </a>
+		<a href="#rc_peer"> <div class = "rel">  rc::Peer </div> <br> </a>
+		<span> Defined in header <a href="RedRelayClient.hpp.html"><span class="red">&#60;RedRelayClient.hpp&#62;</span></a> </span> <br> <br>
+		<div class ="container"> 
+
+			<a name = "rc_client"> <h5>rc::RedRelayClient</h5> </a> <br>
+
+				Public Types:
+					<ul> <li>std::vector&#60;rc::Event&#62; Events <br>
+					<span class = "grey"> Events queue for handling incoming events. </span> </li> </ul>
+
+				Public Member Functions:
+					<ul> <li>void Update()<br>
+					<span class = "grey"> Polls client internal states, handles the network data and notifies by events
+										  This function should be called every tick in your application loop. </span> </li> </ul>
+
+					<ul> <li>std::string GetVersion() const<br>
+					<span class = "grey"> Returns library version, OS name and architecture. </span> </li> </ul> 
+
+					<ul> <li>void Connect(const std::string& Address, uint16_t Port=6121)<br>
+					<span class = "grey"> Performs a connect request to specified address. <br> On successful connect, reports Event::Connected to the event queue </span> </li> </ul>
+
+					<ul> <li>void Disconnect()<br>
+					<span class = "grey"> Disconnects the client from the server. <br> Reports Event::Disconnected to the event queue. </span> </li> </ul>
+
+					<ul> <li>std::string GetHostAddress() const<br>
+					<span class = "grey"> Returns host server IP address. </span> </li> </ul>
+
+					<ul> <li>uint16_t GetHostPort() const<br>
+					<span class = "grey"> Returns host server port. </span> </li> </ul>
+
+					<ul> <li>uint8_t GetConnectState() const<br>
+					<span class = "grey"> Returns the connection state of the client<br>
+										  Valid states are:
+										  <ul> <li> rc::RedRelayClient::Disconnected<p style="margin-left: 50px"></p>//Not connected to server </li>
+												 <li> rc::RedRelayClient::Connecting<p style="margin-left: 66px"></p>//Connecting through TCP </li>
+												 <li> rc::RedRelayClient::RequestingTcp<p style="margin-left: 41px"></p>//Waiting for connect response from the server </li>
+												 <li> rc::RedRelayClient::RequestingUdp<p style="margin-left: 36px"></p>//Waiting for UDP handshake completion, TCP may be used now </li>
+												 <li> rc::RedRelayClient::Established<p style="margin-left: 64px"></p>//Connection sequence completed </li>
+											</ul>
+										  </span> </li> </ul>
+
+					<ul> <li>bool IsConnected() const<br>
+					<span class = "grey"> Returns client unique ID, assigned by the server on successful connect. </span> </li> </ul>
+
+					<ul> <li>void SetName(const std::string& Name)<br>
+					<span class = "grey"> Requests a name change. <br> On success, reports Event::NameSet or Event::NameDenied with a deny reason. </span> </li> </ul>
+
+					<ul> <li>std::string SelfName() const<br>
+					<span class = "grey"> Returns current client name. </span> </li> </ul>
+
+					<ul> <li>void JoinChannel(const std::string& ChannelName, uint8_t Flags=0)<br>
+					<span class = "grey"> Requests to join a channel, creates such channel if it didn't exist before. <br>
+										  Valid flags are: 
+											<ul> <li> HideFromList - hide the channel from channel listing, </li>
+												 <li> CloseOnLeave - close the channel when creator leaves it </li>
+											</ul>
+				 	On success, reports Event::ChannelJoin or Event::ChannelDenied with a deny reason. <br>
+				 	Selects the channel on join.
+				 	<br> </span> </li> </ul>
+
+					<ul> <li>const std::vector&#60;Channel&#62;& GetJoinedChannels() const<br>
+					<span class = "grey"> Returns currently joined channels list. </span> </li> </ul>
+
+					<ul> <li>const rc::Channel& GetChannel(const std::string& Name/uint16_t ID/void) const<br>
+					<span class = "grey"> Returns a reference to specified joined channel or currently selected channel. </span> </li> </ul>
+
+					<ul> <li>void LeaveChannel(const std::string& Name/uint16_t ID/void)<br>
+					<span class = "grey"> Requests to leave the specified channel or currently selected channel. <br> On success, reports Event::ChannelLeave. </span> </li> </ul>
+
+					<ul> <li>void RequestChannelsList()<br>
+					<span class = "grey"> Request a channels list from the server. <br> On success, reports Event::ListReceived or Event::ListDenied with a deny reason. </span> </li> </ul>
+
+					<ul> <li>void SelectChannel(const std::string& Name/uint16_t ID)<br>
+					<span class = "grey"> Selects the specified joined channel. </span> </li> </ul>
+
+					<ul> <li>void ChannelSend/ChannelBlast([const void* Data, std::size_t Size]/const rc::Binary& Binary, uint8_t Subchannel, uint8_t Variant=2, uint16_t ChannelID/void)<br>
+					<span class = "grey"> Sends byte array/packet through TCP/UDP to specified channel or currently selected channel. <br> There are also Subchannel(0-255) and Variant(0-15) parameters to distinguish between different message types. </span> </li> </ul>
+
+					<ul> <li>void PeerSend/PeerBlast([const void* Data, std::size_t Size]/const rc::Binary& Binary, uint16_t PeerID, uint8_t Subchannel, uint8_t Variant=2, uint16_t ChannelID/void)<br>
+					<span class = "grey"> Sends byte array/packet through TCP/UDP to specified peer through a channel. <br> There are also Subchannel(0-255) and Variant(0-15) parameters to distinguish between different message types. </span> </li> </ul>
+
+		</div> <br>
+
+		<div class = "container">
+
+			<a name = "rc_event"> <h5> rc::Event </h5> </a> <br>
+			Event class containing event type and its specific data. <br> <br>
+				Public Types:
+					<ul> <li> enum Type{ <br><ul>
+	<li>Error,<p style="margin-left: 150px"></p>//An error occurred<br>
+	Connected,<p style="margin-left: 107px"></p>//TCP handshake completed <br>
+	UdpWelcome,<p style="margin-left: 89px"></p>//UDP handshake completed <br>
+	ConnectDenied,<p style="margin-left: 74px"></p>//Connection denied - server may be full, may have banned you, etc <br>
+	Disconnected,<p style="margin-left: 88px"></p>//Disconnected from the server - on purpose, or the server dropped the connection <br>
+	NameSet,<p style="margin-left: 118px"></p>//Successful name set <br>
+	NameDenied,<p style="margin-left: 91px"></p>//Name set denied - the name conflicted with other peer name, contained illegal characters, etc <br>
+	ChannelJoin,<p style="margin-left: 96px"></p>//Successful channel join <br>
+	ChannelDenied,<p style="margin-left: 74px"></p>//Channel join denied  - the client has no name, it's name conflicts with other peer in channel, etc <br>
+	ChannelLeave,<p style="margin-left: 81px"></p>//You left the channel - on purpose, or the server kicked you from there <br>
+	ChannelLeaveDenied,<p style="margin-left: 30px"></p>//Channel leave denied - there was no such channel to leave <br>
+	ListReceived,<p style="margin-left: 92px"></p>//Channels list received - will be followed by Event::ListEntry <br>
+	ListEntry,<p style="margin-left: 122px"></p>//A single channel from the list <br>
+	ListDenied,<p style="margin-left: 107px"></p>//Channels list request denied - server may have this option disabled, or you requested it too many times <br>
+	PeerJoined,<p style="margin-left: 102px"></p>//A peer joined one of the channels you were in <br>
+	PeerLeft,<p style="margin-left: 122px"></p>//A peer from of the channels you were in left <br>
+	PeerChangedName,<p style="margin-left: 41px"></p>//A peer from of the channels you were in changed its name <br>
+	ChannelBlast,<p style="margin-left: 88px"></p>//A peer from of the channels you were in issued a blast (UDP) broadcast to the channel <br>
+	ChannelSent,<p style="margin-left: 90px"></p>//A peer from of the channels you were in issued a send (TCP) broadcast to the channel <br>
+	PeerBlast,<p style="margin-left: 113px"></p>//A peer from of the channels you were in blast you a private message <br>
+	PeerSent<p style="margin-left: 120px"></p>//A peer from of the channels you were in sent you a private message <br></ul>
+}; <br>
+							<span class = "grey"> Specifies the type of the event. </span> </li>
+						</ul>
+
+				Public Member Functions:
+
+					<ul> <li>std::string ErrorMessage() const<br>
+					<span class = "grey"> Returns error message on Error. </span> </li> </ul>
+
+					<ul> <li>std::string DenyMessage() const<br>
+					<span class = "grey"> Returns deny reason on ConnectDenied, NameDenied, ChannelDenied, ChannelLeaveDenied, ListDenied. </span> </li> </ul>
+
+					<ul> <li>std::string WelcomeMessage() const<br>
+					<span class = "grey"> Returns server welcome message on Connect. </span> </li> </ul>
+
+					<ul> <li>std::string DisconnectAddress() const<br>
+					<span class = "grey"> Returns host address on Disconnect. </span> </li> </ul>
+
+					<ul> <li>uint16_t ChannelsCount() const <br>
+					<span class = "grey"> Returns channels count in list on ListReceived. </span> </li> </ul>
+
+					<ul> <li>std::string ChannelName() const<br>
+					<span class = "grey"> Returns channel name on ChannelJoin, ChannelLeave, ListEntry. </span> </li> </ul>
+
+					<ul> <li>uint16_t ChannelID() const<br>
+					<span class = "grey"> Returns channel ID on ChannelJoin, ChannelLeave, ChannelLeaveDenied, ChannelSent, PeerSent, ChannelBlasted, PeerBlasted. </span> </li> </ul>
+
+					<ul> <li>uint16_t PeersCount() const<br>
+					<span class = "grey"> Returns channel peers count on ListEntry. </span> </li> </ul>
+
+					<ul> <li>std::string PeerName() const<br>
+					<span class = "grey"> Returns peer name on PeerJoined, PeerLeft, PeerChangedName. </span> </li> </ul>
+
+					<ul> <li>uint16_t PeerID() const<br>
+					<span class = "grey"> Returns peer ID on PeerJoined, PeerLeft, PeerChangedName, ChannelSent, PeerSent, ChannelBlasted, PeerBlasted </span> </li> </ul>
+
+					<ul> <li>const char* Address() const<br>
+					<span class = "grey"> Returns message address. </span> </li> </ul>
+
+					<ul> <li>uint32_t Size() const<br>
+					<span class = "grey"> Returns message size. </span> </li> </ul>
+
+					<ul> <li>uint8_t Subchannel() const<br>
+					<span class = "grey"> Returns message subchannel. </span> </li> </ul>
+
+					<ul> <li>uint8_t Variant() const<br>
+					<span class = "grey"> Returns message variant on any send/blast. </span> </li> </ul>
+
+					<ul> <li>[u]int8_t Byte/UByte(uint32_t Index) const<br>
+					<span class = "grey"> Reads signed/unsigned byte from message. </span> </li> </ul>
+
+					<ul> <li>[u]int16_t Short/UShort(uint32_t Index) const<br>
+					<span class = "grey"> Reads signed/unsigned short from message. </span> </li> </ul>
+
+					<ul> <li>[u]int32_t Int/UInt(uint32_t Index) const<br>
+					<span class = "grey"> Reads signed/unsigned integer from message. </span> </li> </ul>
+
+					<ul> <li>float Float(uint32_t Index) const<br>
+					<span class = "grey"> Reads float from message at given index. </span> </li> </ul>
+
+					<ul> <li>std::string String(uint32_t Index[, uint32_t Size]) const<br>
+					<span class = "grey"> Reads null terminated string or string with size. </span> </li> </ul>
+
+		</div> <br>
+
+		<div class = "container">
+			<a name = "rc_binary"> <h5> rc::Binary </h5> </a> <br>
+			Packet class for building network packets from variables. <br> <br>
+			Public Member Functions:
+
+					<ul> <li>void Reallocate(std::size_t newcapacity)<br>
+					<span class = "grey"> Reallocates memory for storing the packet. <br> Implicitly called if there's insufficient memory to hold the data. </span> </li> </ul>
+
+					<ul> <li>void Resize(std::size_t Size)<br>
+					<span class = "grey"> Resizes the packet. </span> </li> </ul>
+
+					<ul> <li>const char* GetAddress() const<br>
+					<span class = "grey"> Returns address of the packet. </span> </li> </ul>
+
+					<ul> <li>std::size_t GetSize() const<br>
+					<span class = "grey"> Returns size of the packet (in bytes). </span> </li> </ul>
+
+					<ul> <li>void Clear()<br>
+					<span class = "grey"> Clears the packet. </span> </li> </ul>
+
+					<ul> <li>void AddByte(uint8_t Byte)<br>
+					<span class = "grey"> Adds byte to the packet. </span> </li> </ul>
+
+					<ul> <li>void AddShort(uint16_t Short)<br>
+					<span class = "grey"> Adds short to the packet. </span> </li> </ul>
+
+					<ul> <li>void AddInt(uint32_t Int)<br>
+					<span class = "grey"> Adds integer to the packet. </span> </li> </ul>
+
+					<ul> <li>void AddFloat(float Float)<br>
+					<span class = "grey"> Adds float to the packet. </span> </li> </ul>
+
+					<ul> <li>void AddString(const std::string& String)<br>
+					<span class = "grey"> Adds string to the packet (omitting the null terminator). </span> </li> </ul>
+
+					<ul> <li>void AddNullString(const std::string& String)<br>
+					<span class = "grey"> Adds null terminated string to the packet. </span> </li> </ul>
+
+					<ul> <li>void AddBinary(const void* Data, std::size_t Size)<br>
+					<span class = "grey"> Adds binary data to the packet. </span> </li> </ul>
+		</div> <br>
+
+		<div class = "container">
+			<a name = "rc_channel"> <h5> rc::Channel </h5> </a> <br>
+			Channel class that holds the joined peers and flags. <br>
+
+			Public Member Functions:
+
+					<ul> <li>uint16_t GetID() const<br>
+					<span class = "grey"> Returns channel ID. </span> </li> </ul>
+
+					<ul> <li>std::string GetName() const<br>
+					<span class = "grey"> Returns channel name. </span> </li> </ul>
+
+					<ul> <li>std::size_t GetPeerCount() const<br>
+					<span class = "grey"> Returns peers count in channel. </span> </li> </ul>
+
+					<ul> <li>const std::vector&#60;Peer&#62;& GetPeerList() const<br>
+					<span class = "grey"> Returns peers list </span> </li> </ul>
+
+					<ul> <li>const rc::Peer& GetPeer(const std : : string& Name/uint16_t ID) const<br>
+					<span class = "grey"> Returns a reference to peer in channel with specified name/ID. </span> </li> </ul>
+
+					<ul> <li>uint16_t GetMasterID() const<br>
+					<span class = "grey"> Returns channel creator (master) ID. </span> </li> </ul>
+
+					<ul> <li>uint8_t GetFlags() const<br>
+					<span class = "grey"> Returns channel flags bitset. </span> </li> </ul>
+
+					<ul> <li>bool IsHidden() const<br>
+					<span class = "grey"> Checks if the channel is hidden from the server channels list. </span> </li> </ul>
+
+					<ul> <li>bool IsAutoClosed() const<br>
+					<span class = "grey"> Checks if the channel is automatically closed when master leaves. </span> </li> </ul>
+		</div> <br>
+
+		<div class = "container">
+			<a name = "rc_peer"> <h5> rc::Peer </h5> </a> <br>
+				Peer class for any peer in channel.  <br>
+
+				Public Member Functions:
+
+					<ul> <li>uint16_t GetID() const<br>
+					<span class = "grey"> Returns peer ID. </span> </li> </ul>
+
+					<ul> <li>std::string GetName() const<br>
+					<span class = "grey"> Returns peer name. </span> </li> </ul>
+
+		</div>
+</body>
+</body>
+</html>
