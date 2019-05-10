@@ -1,6 +1,6 @@
 # RedRelay
 
-RedRelay - Copyright (C) 2019 LekKit
+RedRelay - Copyright (C) 2019 LekKit - published under zlib/libpng license
 
 This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
 
@@ -14,5 +14,5 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 ## External libraries used by RedRelay
 
-  * _SFML-Network_ is under zlib license
+  * _SFML-Network_ is under zlib/libpng license
   * _wepoll_ (optional) is under BSD license
