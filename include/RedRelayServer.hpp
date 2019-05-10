@@ -46,9 +46,9 @@ private:
     char* buffer;
 public:
     RelayPacket(std::size_t Size=65536);
-	~RelayPacket();
-	void Reallocate(std::size_t newcapacity);
-	void SetType(const uint8_t Type);
+    ~RelayPacket();
+    void Reallocate(std::size_t newcapacity);
+    void SetType(const uint8_t Type);
     void AddByte(const uint8_t Byte);
     void AddShort(const uint16_t Short);
     void AddInt(const uint32_t Int);
@@ -127,61 +127,61 @@ private:
     //Server configuration
     uint16_t ConnectionsLimit, PeersLimit, ChannelsLimit, PeerChannelsLimit;
     bool GiveNewMaster, LoggingEnabled;
-	uint8_t PingInterval;
-	std::string WelcomeMessage;
+    uint8_t PingInterval;
+    std::string WelcomeMessage;
     bool Running;
 
     //Packet buffer
-	RelayPacket packet;
+    RelayPacket packet;
     char UdpBuffer[65536];
 
     //Data containers for peers, channels
-	std::unordered_map<std::string, uint16_t> ChannelNames;
+    std::unordered_map<std::string, uint16_t> ChannelNames;
     IndexedPool<Connection> ConnectionsPool;
-	IndexedPool<Peer> PeersPool;
-	IndexedPool<Channel> ChannelsPool;
+    IndexedPool<Peer> PeersPool;
+    IndexedPool<Channel> ChannelsPool;
 
     //Network interfaces
-	sf::TcpListener TcpListener;
-	sf::UdpSocket UdpSocket;
+    sf::TcpListener TcpListener;
+    sf::UdpSocket UdpSocket;
 #ifdef REDRELAY_EPOLL
-	EpollSelector Selector;
+    EpollSelector Selector;
 #else
     sf::SocketSelector Selector;
 #endif
 
-	//Timers
-	sf::Clock DeltaClock;
-	sf::Clock TimerClock;
-	float DeltaTime();
-	float Timer();
+    //Timers
+    sf::Clock DeltaClock;
+    sf::Clock TimerClock;
+    float DeltaTime();
+    float Timer();
 
     //Logging
     std::string DualDigit(uint8_t num);
     void Log(std::string message, uint8_t colour=15);
 
 	//Peers and connections related stuff
-	void DropConnection(uint16_t ID);
-	void DenyConnection(uint16_t ID, const std::string& Reason);
-	void DenyNameChange(uint16_t ID, const std::string& Name, const std::string& Reason);
-	void DenyChannelJoin(uint16_t ID, const std::string& Name, const std::string& Reason);
-	void PeerLeftChannel(uint16_t Channel, uint16_t Peer);
-	void PeerDroppedFromChannel(uint16_t Channel, uint16_t Peer);
+    void DropConnection(uint16_t ID);
+    void DenyConnection(uint16_t ID, const std::string& Reason);
+    void DenyNameChange(uint16_t ID, const std::string& Name, const std::string& Reason);
+    void DenyChannelJoin(uint16_t ID, const std::string& Name, const std::string& Reason);
+    void PeerLeftChannel(uint16_t Channel, uint16_t Peer);
+    void PeerDroppedFromChannel(uint16_t Channel, uint16_t Peer);
 
-	//Handling messages
-	void HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t Type);
+    //Handling messages
+    void HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t Type);
     void NewConnection();
     void ReceiveUdp();
     void ReceiveTcp(uint16_t PeerID);
     void HandleConnection(uint16_t ConnectionID);
 public:
     RedRelayServer();
-	std::string GetVersion() const;
-	void SetConnectionsLimit(uint16_t Limit);
-	void SetPeersLimit(uint16_t Limit);
-	void SetChannelsLimit(uint16_t Limit);
-	void SetChannelsPerPeerLimit(uint16_t Limit);
-	void SetWelcomeMessage(const std::string& String);
+    std::string GetVersion() const;
+    void SetConnectionsLimit(uint16_t Limit);
+    void SetPeersLimit(uint16_t Limit);
+    void SetChannelsLimit(uint16_t Limit);
+    void SetChannelsPerPeerLimit(uint16_t Limit);
+    void SetWelcomeMessage(const std::string& String);
     const Peer& GetPeer(uint16_t PeerID);
     const Channel& GetChannel(uint16_t ChannelID);
     void SetErrorCallback(void(*Error)(const std::string& ErrorMessage));
@@ -196,9 +196,9 @@ public:
     void SetServerSentCallback(void(*ServerMessageSent)(uint16_t, uint8_t, const char*, std::size_t));
     void SetServerBlastCallback(void(*ServerMessageBlast)(uint16_t, uint8_t, const char*, std::size_t));
     void DropPeer(uint16_t ID);
-	void Start(uint16_t Port=6121);
-	void Stop();
-	bool IsRunning();
+    void Start(uint16_t Port=6121);
+    void Stop();
+    bool IsRunning();
 };
 
 }
