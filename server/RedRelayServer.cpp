@@ -1,0 +1,789 @@
+////////////////////////////////////////////////////////////
+//
+// RedRelay - a Lacewing Relay protocol reimplementation
+// Copyright (c) 2019 LekKit (LekKit#4400 in Discord)
+//
+// This software is provided 'as-is', without any express or implied
+// warranty. In no event will the authors be held liable for any damages
+// arising from the use of this software.
+//
+// Permission is granted to anyone to use this software for any purpose,
+// including commercial applications, and to alter it and redistribute it
+// freely, subject to the following restrictions:
+//
+// 1. The origin of this software must not be misrepresented; you must not
+//   claim that you wrote the original software. If you use this software
+//   in a product, an acknowledgment in the product documentation would be
+//   appreciated but is not required.
+// 2. Altered source versions must be plainly marked as such, and must not be
+//   misrepresented as being the original software.
+// 3. This notice may not be removed or altered from any source distribution.
+//
+////////////////////////////////////////////////////////////
+
+#include "RedRelayServer.hpp"
+#include "Platform.hpp"
+#include "ConsoleColors.hpp"
+#include <streambuf>
+#include <iostream>
+#include <cstring>
+
+
+namespace rs{
+
+float RedRelayServer::DeltaTime(){
+	return DeltaClock.restart().asMilliseconds()*0.001;
+}
+
+float RedRelayServer::Timer(){
+	return TimerClock.getElapsedTime().asMilliseconds()*0.001;
+}
+
+std::string RedRelayServer::DualDigit(uint8_t num){
+	std::string str = std::to_string(num);
+	return ("00"+str).substr(str.length(), 2);
+}
+
+void RedRelayServer::Log(std::string message, uint8_t color){
+	if (!LoggingEnabled) return;
+	ChangeConsoleColor(15);
+	time_t now = time(0);
+	std::cout<<"["<<DualDigit(localtime(&now)->tm_hour)<<":"<<DualDigit(localtime(&now)->tm_min)<<":"<<DualDigit(localtime(&now)->tm_sec)<<"] ";
+	ChangeConsoleColor(color);
+	std::cout<<message<<std::endl;
+}
+
+void RedRelayServer::DropConnection(uint16_t ID){
+	if (!ConnectionsPool.Allocated(ID)) return;
+	Selector.remove(*ConnectionsPool[ID].Socket);
+	delete ConnectionsPool[ID].Socket;
+	ConnectionsPool.Deallocate(ID);
+}
+
+void RedRelayServer::DenyConnection(uint16_t ID, const std::string& Reason){
+	packet.Clear();
+	packet.SetType(0);
+	packet.AddByte(0);
+	packet.AddByte(false);
+	packet.AddString(Reason);
+	ConnectionsPool[ID].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+	DropConnection(ID);
+}
+
+void RedRelayServer::DenyNameChange(uint16_t ID, const std::string& Name, const std::string& Reason){
+	packet.Clear();
+	packet.SetType(0);
+	packet.AddByte(1);
+	packet.AddByte(false);
+	packet.AddByte(Name.length());
+	packet.AddString(Name);
+	packet.AddString(Reason);
+	PeersPool[ID].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+}
+
+void RedRelayServer::DenyChannelJoin(uint16_t ID, const std::string& Name, const std::string& Reason){
+	packet.Clear();
+	packet.SetType(0);
+	packet.AddByte(2);
+	packet.AddByte(false);
+	packet.AddByte(Name.length());
+	packet.AddString(Name);
+	packet.AddString(Reason);
+	PeersPool[ID].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+}
+
+void RedRelayServer::PeerLeftChannel(uint16_t Channel, uint16_t Peer){
+	packet.Clear();
+	packet.SetType(9);
+	packet.AddShort(Channel);
+	packet.AddShort(Peer);
+	for (const uint16_t&peerID : ChannelsPool[Channel].Peers)
+		PeersPool[peerID].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+}
+
+void RedRelayServer::PeerDroppedFromChannel(uint16_t Channel, uint16_t Peer){
+	packet.Clear();
+	packet.SetType(0);
+	packet.AddByte(3);
+	packet.AddByte(true);
+	packet.AddShort(Channel);
+	PeersPool[Peer].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+}
+
+void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t Type){
+	Peer& Client = PeersPool[ID];
+	switch (Type>>4){
+	case 0:
+		if (Size==0) return;
+		switch ((unsigned char)Msg[0]){
+		case 1:
+			{
+				std::string Name = std::string(&Msg[1], (Size<256 ? Size-1:255));
+				if (Size==1){
+					DenyNameChange(ID, Name, "Can't set a blank name");
+					return;
+				}
+				if (Size>256){
+					DenyNameChange(ID, Name, "Name is too long");
+					return;
+				}
+				if (Client.Name!=Name){
+					for (uint16_t&channelID : Client.Channels) for (uint16_t&peerID : ChannelsPool[channelID].Peers)
+						if (PeersPool[peerID].Name==Name){
+							DenyNameChange(ID, Name, "Name already taken in channel "+ChannelsPool[channelID].Name);
+							return;
+						}
+					if (Callbacks.NameSet!=NULL){
+						std::string DenyReason;
+						if (!Callbacks.NameSet(ID, Name, DenyReason)){
+							DenyNameChange(ID, Name, DenyReason);
+							return;
+						}
+					}
+					Log(std::to_string(ID)+" | Peer "+PeersPool[ID].Name+" set name to "+Name, 6);
+					for (uint16_t&channelID : Client.Channels) for (uint16_t&peerID : ChannelsPool[channelID].Peers)
+						if (peerID!=ID){
+							packet.Clear();
+							packet.SetType(9);
+							packet.AddShort(channelID);
+							packet.AddShort(ID);
+							packet.AddByte(ChannelsPool[channelID].Master==ID);
+							packet.AddString(Name);
+							PeersPool[peerID].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+						}
+				}
+				Client.Name=Name;
+				packet.Clear();
+				packet.SetType(0);
+				packet.AddByte(1);
+				packet.AddByte(true);
+				packet.AddByte(Name.length());
+				packet.AddString(Name);
+				Client.Socket->send(packet.GetPacket(), packet.GetPacketSize());
+			}
+			break;
+		case 2:
+			{
+				if (Size<3){
+					DenyChannelJoin(ID, "", "Can't join a channel with a blank name");
+					return;
+				}
+				std::string ChannelName = std::string(&Msg[2], Size-2);
+				bool HideFromList=(Msg[1]&1)!=0, CloseOnLeave=(Msg[1]&2)!=0;
+				if (Client.Name==""){
+					DenyChannelJoin(ID, ChannelName, "Set a name before joining a channel");
+					return;
+				}
+				if (Client.Channels.size()>=PeerChannelsLimit){
+					DenyChannelJoin(ID, ChannelName, "You joined too many channels");
+					return;
+				}
+				if (ChannelNames.count(ChannelName) == 0){
+					if (ChannelsPool.GetAllocated().size()>=ChannelsLimit){
+						DenyChannelJoin(ID, ChannelName, "Channels limit reached");
+						return;
+					}
+					for (uint16_t channelID=0; channelID<ChannelsLimit; ++channelID) if (!ChannelsPool.Allocated(channelID)){
+						ChannelsPool.Allocate(channelID);
+						ChannelNames[ChannelName]=channelID;
+						ChannelsPool[channelID].Name=ChannelName;
+						ChannelsPool[channelID].Master=ID;
+						ChannelsPool[channelID].HideFromList=HideFromList;
+						ChannelsPool[channelID].CloseOnLeave=CloseOnLeave;
+						ChannelsPool[channelID].Peers.push_back(ID);
+
+						if (Callbacks.ChannelJoin!=NULL){
+							std::string DenyReason;
+							if (!Callbacks.ChannelJoin(ID, channelID, DenyReason)){
+								DenyChannelJoin(ID, ChannelName, DenyReason);
+								ChannelsPool.Deallocate(channelID);
+								ChannelNames.erase(ChannelName);
+								return;
+							}
+						}
+
+						Log("Created channel " + ChannelName + (HideFromList ? std::string(", hidden") : "") + (CloseOnLeave ? std::string(", closed on leave") : ""), 11);
+						Log(std::to_string(ID)+" | Peer "+PeersPool[ID].Name+" joined channel "+ChannelName, 3);
+
+						Client.Channels.push_back(channelID);
+
+						packet.Clear();
+						packet.SetType(0);
+						packet.AddByte(2);
+						packet.AddByte(true);
+						packet.AddByte(true);
+						packet.AddByte(ChannelName.length());
+						packet.AddString(ChannelName);
+						packet.AddShort(channelID);
+						Client.Socket->send(packet.GetPacket(), packet.GetPacketSize());
+						return;
+					}
+				} else {
+					uint16_t channelID=ChannelNames[ChannelName];
+					for(uint16_t&_channelID : Client.Channels) if (_channelID == channelID){
+						DenyChannelJoin(ID, ChannelName, "You are in this channel already");
+						return;
+					}
+					for (uint16_t&peerID : ChannelsPool[channelID].Peers) if (PeersPool[peerID].Name==Client.Name){
+						DenyChannelJoin(ID, ChannelName, "Name already taken");
+						return;
+					}
+
+					if (Callbacks.ChannelJoin!=NULL){
+						std::string DenyReason;
+						if (!Callbacks.ChannelJoin(ID, channelID, DenyReason)){
+							DenyChannelJoin(ID, ChannelName, DenyReason);
+							return;
+						}
+					}
+
+					Log(std::to_string(ID)+" | Peer "+PeersPool[ID].Name+" joined channel "+ChannelName, 3);
+
+					packet.Clear();
+					packet.SetType(9);
+					packet.AddShort(channelID);
+					packet.AddShort(ID);
+					packet.AddByte(false);
+					packet.AddString(Client.Name);
+					for (uint16_t&peerID : ChannelsPool[channelID].Peers)
+						PeersPool[peerID].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+
+					packet.Clear();
+					packet.SetType(0);
+					packet.AddByte(2);
+					packet.AddByte(true);
+					packet.AddByte(false);
+					packet.AddByte(ChannelName.length());
+					packet.AddString(ChannelName);
+					packet.AddShort(channelID);
+					for (uint16_t&peerID : ChannelsPool[channelID].Peers){
+						packet.AddShort(peerID);
+						packet.AddByte(peerID==ChannelsPool[channelID].Master);
+						packet.AddByte(PeersPool[peerID].Name.length());
+						packet.AddString(PeersPool[peerID].Name);
+					}
+
+					Client.Channels.push_back(channelID);
+					ChannelsPool[channelID].Peers.push_back(ID);
+
+					Client.Socket->send(packet.GetPacket(), packet.GetPacketSize());
+				}
+
+			}
+			break;
+		case 3:
+			{
+				if (Size<3) return;
+				uint16_t channelID=(unsigned char)Msg[1]|(unsigned char)Msg[2]<<8;
+				if (!ChannelsPool.Allocated(channelID)) return;
+				for (unsigned int i=0; i<Client.Channels.size(); ++i) if (Client.Channels.at(i)==channelID){
+					if (Callbacks.ChannelLeave!=NULL){
+						std::string DenyReason;
+						if (!Callbacks.ChannelLeave(ID, channelID, DenyReason)){
+							packet.Clear();
+							packet.SetType(0);
+							packet.AddByte(3);
+							packet.AddByte(false);
+							packet.AddShort(channelID);
+							packet.AddString(DenyReason);
+							PeersPool[ID].Socket->send(packet.GetPacket(), packet.GetPacketSize());
+							return;
+						}
+					}
+					Log(std::to_string(ID)+" | Peer "+PeersPool[ID].Name+" left the channel "+ChannelsPool[channelID].Name, 8);
+					Client.Channels.erase(Client.Channels.begin()+i);
+					for (unsigned int i=0; i<ChannelsPool[channelID].Peers.size(); ++i) if (ChannelsPool[channelID].Peers.at(i)==ID) ChannelsPool[channelID].Peers.erase(ChannelsPool[channelID].Peers.begin()+i);
+					if (ChannelsPool[channelID].Peers.size()==0 || (ChannelsPool[channelID].CloseOnLeave && ChannelsPool[channelID].Master==ID)){
+						if (Callbacks.ChannelClosed!=NULL) Callbacks.ChannelClosed(channelID);
+						Log("Channel "+ChannelsPool[channelID].Name+" closed", 12);
+						for (uint16_t&peerID : ChannelsPool[channelID].Peers){
+							for (unsigned int i=0; i<PeersPool[peerID].Channels.size(); ++i) if (PeersPool[peerID].Channels.at(i)==channelID) PeersPool[peerID].Channels.erase(PeersPool[peerID].Channels.begin()+i);
+							PeerDroppedFromChannel(channelID, peerID);
+						}
+						PeerDroppedFromChannel(channelID, ID);
+						ChannelNames.erase(ChannelsPool[channelID].Name);
+						ChannelsPool.Deallocate(channelID);
+					} else {
+						if (ChannelsPool[channelID].Master==ID){
+							if (GiveNewMaster && ChannelsPool[channelID].Peers.size()>0) ChannelsPool[channelID].Master=ChannelsPool[channelID].Peers.at(0);
+							else ChannelsPool[channelID].Master=65000;
+						}
+						PeerLeftChannel(channelID, ID);
+					}
+				}
+			}
+			break;
+		case 4:
+			if (Callbacks.ChannelsListRequest!=NULL){
+				std::string DenyReason;
+				if (!Callbacks.ChannelsListRequest(ID, DenyReason)){
+					packet.Clear();
+					packet.SetType(0);
+					packet.AddByte(4);
+					packet.AddByte(false);
+					packet.AddString(DenyReason);
+					Client.Socket->send(packet.GetPacket(), packet.GetPacketSize());
+					return;
+				}
+			}
+			Log(std::to_string(ID)+" | Peer "+PeersPool[ID].Name+" requested channel list", 2);
+			packet.Clear();
+			packet.SetType(0);
+			packet.AddByte(4);
+			packet.AddByte(true);
+			for (IndexedElement<Channel>it : ChannelsPool.GetAllocated()){
+				if (!it.element->HideFromList){
+					packet.AddShort(it.element->Peers.size());
+					packet.AddByte(it.element->Name.length());
+					packet.AddString(it.element->Name);
+				}
+			}
+			Client.Socket->send(packet.GetPacket(), packet.GetPacketSize());
+			break;
+		default:
+			break;
+		}
+		break;
+	case 2:
+		{
+			if (Size<3) return;
+			uint16_t channel=(unsigned char)Msg[1]|(unsigned char)Msg[2]<<8;
+			for (uint16_t&channelID : Client.Channels) if (channel==channelID){
+				char header[11];
+				uint8_t headersize;
+				header[0]=Type;
+				if (Size+2<254){
+					header[1]=Size+2;
+					headersize=2;
+				} else if (Size+2<65535){
+					header[1]=(uint8_t)254;
+					header[2]=(Size+2)&255;
+					header[3]=((Size+2)>>8)&255;
+					headersize=4;
+				} else {
+					header[1]=(uint8_t)255;
+					header[2]=(Size+2)&255;
+					header[3]=((Size+2)>>8)&255;
+					header[4]=((Size+2)>>16)&255;
+					header[5]=((Size+2)>>24)&255;
+					headersize=6;
+				}
+				header[headersize++]=Msg[0];
+				header[headersize++]=Msg[1];
+				header[headersize++]=Msg[2];
+				header[headersize++]=ID&255;
+				header[headersize++]=(ID>>8)&255;
+				for (uint16_t&peerID : ChannelsPool[channelID].Peers) if (peerID!=ID){
+					PeersPool[peerID].Socket->send(header, headersize);
+					if (Size>3) PeersPool[peerID].Socket->send(&Msg[3], Size-3);
+				}
+			}
+		}
+		break;
+	case 3:
+		{
+			if (Size<5) return;
+			uint16_t channel=(unsigned char)Msg[1]|(unsigned char)Msg[2]<<8, peer=(unsigned char)Msg[3]|(unsigned char)Msg[4]<<8;
+			if (PeersPool.Allocated(peer)) for (uint16_t&channelID : Client.Channels) if (channelID==channel) for (uint16_t&_channelID : PeersPool[peer].Channels) if (_channelID==channel){
+				char header[11];
+				uint8_t headersize;
+				header[0]=Type;
+				if (Size<254){
+					header[1]=Size;
+					headersize=2;
+				} else if (Size<65535){
+					header[1]=(uint8_t)254;
+					header[2]=Size&255;
+					header[3]=(Size>>8)&255;
+					headersize=4;
+				} else {
+					header[1]=(uint8_t)255;
+					header[2]=Size&255;
+					header[3]=(Size>>8)&255;
+					header[4]=(Size>>16)&255;
+					header[5]=(Size>>24)&255;
+					headersize=6;
+				}
+				header[headersize++]=Msg[0];
+				header[headersize++]=Msg[1];
+				header[headersize++]=Msg[2];
+				header[headersize++]=ID&255;
+				header[headersize++]=(ID>>8)&255;
+				PeersPool[peer].Socket->send(header, headersize);
+				if (Size>5) PeersPool[peer].Socket->send(&Msg[5], Size-5);
+				return;
+			}
+		}
+		break;
+	case 9:
+		PeersPool[ID].LastPing=Timer();
+		break;
+	default:
+		break;
+	}
+}
+
+void RedRelayServer::NewConnection(){
+	uint16_t connectID = ConnectionsPool.GetAllocated().size();
+	if (connectID>=ConnectionsLimit) connectID=0;
+	if (ConnectionsPool.Allocated(connectID)) DropConnection(connectID);
+	ConnectionsPool.Allocate(connectID);
+	sf::TcpSocket* Socket = new sf::TcpSocket;
+	if (TcpListener.accept(*Socket) == sf::Socket::Done){
+	#ifdef REDRELAY_EPOLL
+		Selector.add(*Socket, connectID|0x10000);
+	#else
+		Selector.add(*Socket);
+	#endif
+		ConnectionsPool[connectID].Socket = Socket;
+	} else {
+		delete Socket;
+		ConnectionsPool.Deallocate(connectID);
+	}
+}
+void RedRelayServer::ReceiveUdp(){
+	sf::IpAddress UdpAddress; uint16_t UdpPort;
+	std::size_t received;
+	UdpSocket.receive(UdpBuffer, 65536, received, UdpAddress, UdpPort);
+	switch (((uint8_t)UdpBuffer[0])>>4){
+	case 2: //Identifier 2 means ChannelMessage - broadcast message to all peers in given channel
+	{
+		if (received<6) break;
+		uint16_t peer=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
+		if (!PeersPool.Allocated(peer) || PeersPool[peer].Socket->getRemoteAddress()!=UdpAddress || PeersPool[peer].UdpPort!=UdpPort) break;
+		uint16_t channel=(unsigned char)UdpBuffer[4]|(unsigned char)UdpBuffer[5]<<8;
+		for (uint16_t&channelID : PeersPool[peer].Channels) if (channel==channelID){
+			UdpBuffer[1]=UdpBuffer[3];
+			UdpBuffer[2]=UdpBuffer[4];
+			UdpBuffer[3]=UdpBuffer[5];
+			UdpBuffer[4]=peer&255;
+			UdpBuffer[5]=(peer>>8)&255;
+			for (uint16_t&peerID : ChannelsPool[channel].Peers) if(peerID!=peer)
+				UdpSocket.send(UdpBuffer, received, PeersPool[peerID].Socket->getRemoteAddress(), PeersPool[peerID].UdpPort);
+			break;
+		}
+	}
+	break;
+
+	case 3: //Identifier 3 means PeerMessage - send private message to given peer
+	{
+		if (received<8) break;
+		uint16_t peer=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
+		if (!PeersPool.Allocated(peer) || PeersPool[peer].Socket->getRemoteAddress()!=UdpAddress || PeersPool[peer].UdpPort!=UdpPort) break;
+		uint16_t receiver=(unsigned char)UdpBuffer[6]|(unsigned char)UdpBuffer[7]<<8;
+		uint16_t channel=(unsigned char)UdpBuffer[4]|(unsigned char)UdpBuffer[5]<<8;
+		if (PeersPool.Allocated(receiver)) for (uint16_t&channelID : PeersPool[peer].Channels) if (channelID==channel) for (uint16_t&_channelID : PeersPool[receiver].Channels) if (_channelID==channel){
+			UdpBuffer[6]=UdpBuffer[1];
+			UdpBuffer[7]=UdpBuffer[2];
+			UdpBuffer[2]=UdpBuffer[0];
+			UdpSocket.send(&UdpBuffer[2], received-2, PeersPool[receiver].Socket->getRemoteAddress(), PeersPool[receiver].UdpPort);
+			break;
+		}
+	}
+	break;
+
+	case 7: //Identifier 7 means UDPHello - respond with UDPWelcome
+	{
+		if (received<3) break;
+		uint16_t peerID=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
+		if (PeersPool.Allocated(peerID) && (PeersPool[peerID].UdpPort==0 || PeersPool[peerID].UdpPort==UdpPort) && UdpAddress==PeersPool[peerID].Socket->getRemoteAddress()){
+			PeersPool[peerID].UdpPort=UdpPort;
+			UdpBuffer[0]=10<<4;
+			UdpSocket.send(UdpBuffer, 1, UdpAddress, UdpPort);
+		}
+	}
+	break;
+
+	default:
+	break;
+	}
+}
+
+void RedRelayServer::ReceiveTcp(uint16_t PeerID){
+	Peer& Peer = PeersPool[PeerID];
+	std::size_t received;
+	switch (Peer.Socket->receive(&Peer.buffer[Peer.buffbegin+Peer.packetsize], 65536-(Peer.buffbegin+Peer.packetsize), received)){
+	case sf::Socket::Done:
+		Peer.packetsize+=received;
+		while (Peer.MessageReady()){
+			HandleTCP(PeerID, &Peer.buffer[Peer.buffbegin+1+Peer.SizeOffset()], Peer.MessageSize(), Peer.buffer[Peer.buffbegin]);
+			Peer.packetsize -= 1+Peer.SizeOffset()+Peer.MessageSize();
+			Peer.buffbegin += 1+Peer.SizeOffset()+Peer.MessageSize();
+		}
+		if (Peer.buffbegin>0) memcpy(&Peer.buffer[0], &Peer.buffer[Peer.buffbegin], Peer.packetsize);
+		Peer.buffbegin=0;
+		break;
+
+	case sf::Socket::Disconnected:
+		DropPeer(PeerID);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void RedRelayServer::HandleConnection(uint16_t ConnectionID){
+	Connection& Connection = ConnectionsPool[ConnectionID];
+	std::size_t received;
+	switch (Connection.Socket->receive(&Connection.buffer[Connection.received], 14-Connection.received, received)){
+	case sf::Socket::Done:
+		Connection.received+=received;
+		if (Connection.received>0 && Connection.buffer[0]!=0){
+			DropConnection(ConnectionID);
+			break;
+		}
+		if (Connection.received==14 && Connection.buffer[1]>>4==0 && Connection.buffer[2]==11 && Connection.buffer[3]==0 && std::string(&Connection.buffer[4], 10)=="revision 3"){
+			uint16_t peerID=0;
+			for (peerID=0; peerID<PeersLimit; ++peerID) if (!PeersPool.Allocated(peerID)){
+				if (Callbacks.PeerConnect!=NULL){
+					std::string DenyReason;
+					if (!Callbacks.PeerConnect(peerID, Connection.Socket->getRemoteAddress(), DenyReason)){
+						DenyConnection(ConnectionID, DenyReason);
+						break;
+					}
+				}
+				Log(std::to_string(peerID)+" | Peer connected from "+Connection.Socket->getRemoteAddress().toString(), 14);
+				PeersPool.Allocate(peerID);
+				PeersPool[peerID].Socket=Connection.Socket;
+				PeersPool[peerID].LastPing=Timer();
+				packet.Clear();
+				packet.SetType(0);
+				packet.AddByte(0);
+				packet.AddByte(true);
+				packet.AddShort(peerID);
+				packet.AddString(WelcomeMessage);
+			#ifdef REDRELAY_EPOLL
+				Selector.mod(*Connection.Socket, peerID|0x20000);
+			#endif
+				Connection.Socket->send(packet.GetPacket(), packet.GetPacketSize());
+				ConnectionsPool.Deallocate(ConnectionID);
+				break;
+			}
+			if (peerID==PeersLimit) DenyConnection(ConnectionID, "Server is full");
+		}
+		break;
+
+	case sf::Socket::Disconnected:
+		DropConnection(ConnectionID);
+		break;
+
+	default:
+		break;
+	}
+}
+
+
+
+RedRelayServer::RedRelayServer(){
+	Callbacks = {NULL};
+	ConnectionsLimit=16;
+	PeersLimit=128;
+	ChannelsLimit=32;
+	PeerChannelsLimit=4;
+	PingInterval=3;
+	GiveNewMaster=true;
+	LoggingEnabled=true;
+	WelcomeMessage="RedRelay Server #"+std::to_string(REDRELAY_SERVER_BUILD)+" ("+OPERATING_SYSTEM+"/"+ARCHITECTURE+")";
+	Running=false;
+}
+
+std::string RedRelayServer::GetVersion() const {
+	return "RedRelay Server #"+std::to_string(REDRELAY_SERVER_BUILD)+" ("+OPERATING_SYSTEM+"/"+ARCHITECTURE+")";
+}
+
+void RedRelayServer::SetConnectionsLimit(uint16_t Limit){
+	if (Limit>0) ConnectionsLimit=Limit;
+}
+
+void RedRelayServer::SetPeersLimit(uint16_t Limit){
+	if (Limit>0) PeersLimit=Limit;
+}
+
+void RedRelayServer::SetChannelsLimit(uint16_t Limit){
+	if (Limit>0) ChannelsLimit=Limit;
+}
+
+void RedRelayServer::SetChannelsPerPeerLimit(uint16_t Limit){
+	if (Limit>0) PeerChannelsLimit=Limit;
+}
+
+void RedRelayServer::SetWelcomeMessage(const std::string& String){
+	WelcomeMessage=String;
+}
+
+const Peer& RedRelayServer::GetPeer(uint16_t PeerID){
+	return PeersPool[PeerID];
+}
+
+const Channel& RedRelayServer::GetChannel(uint16_t ChannelID){
+	return ChannelsPool[ChannelID];
+}
+
+void RedRelayServer::SetErrorCallback(void(*Error)(const std::string& ErrorMessage)){
+	Callbacks.Error = Error;
+}
+
+void RedRelayServer::SetStartCallback(void(*ServerStarted)(uint16_t)){
+	Callbacks.ServerStart = ServerStarted;
+}
+
+void RedRelayServer::SetConnectCallback(bool(*PeerConnect)(uint16_t, const sf::IpAddress&, std::string&)){
+	Callbacks.PeerConnect = PeerConnect;
+}
+
+void RedRelayServer::SetDisconnectCallback(void(*DisconnectCallback)(uint16_t)){
+	Callbacks.PeerDisconnect = DisconnectCallback;
+}
+
+void RedRelayServer::SetNameCallback(bool(*NameSet)(uint16_t, std::string&, std::string&)){
+	Callbacks.NameSet = NameSet;
+}
+
+void RedRelayServer::SetChannelJoinCallback(bool(*ChannelJoin)(uint16_t, uint16_t, std::string&)){
+	Callbacks.ChannelJoin = ChannelJoin;
+}
+
+void RedRelayServer::SetChannelLeaveCallback(bool(*ChannelLeave)(uint16_t, uint16_t, std::string&)){
+	Callbacks.ChannelLeave = ChannelLeave;
+}
+
+void RedRelayServer::SetChannelClosedCallback(void(*ChannelClosed)(uint16_t)){
+	Callbacks.ChannelClosed = ChannelClosed;
+}
+
+void RedRelayServer::SetChannelsListRequestCallback(bool(*ChannelsListRequest)(uint16_t, std::string&)){
+	Callbacks.ChannelsListRequest = ChannelsListRequest;
+}
+
+void RedRelayServer::SetServerSentCallback(void(*ServerMessageSent)(uint16_t, uint8_t, const char*, std::size_t)){
+	Callbacks.ServerMessageSent = ServerMessageSent;
+}
+
+void RedRelayServer::SetServerBlastCallback(void(*ServerMessageBlast)(uint16_t, uint8_t, const char*, std::size_t)){
+	Callbacks.ServerMessageBlast = ServerMessageBlast;
+}
+
+void RedRelayServer::DropPeer(uint16_t ID){
+	if (!PeersPool.Allocated(ID)) return;
+	if (Callbacks.PeerDisconnect!=NULL) Callbacks.PeerDisconnect(ID);
+	Log(std::to_string(ID)+" | Peer "+PeersPool[ID].Name+" disconnected", 4);
+	for (uint16_t&channelID : PeersPool[ID].Channels){
+		for (unsigned int i=0; i<ChannelsPool[channelID].Peers.size(); ++i) if (ChannelsPool[channelID].Peers.at(i)==ID) ChannelsPool[channelID].Peers.erase(ChannelsPool[channelID].Peers.begin()+i);
+		if (ChannelsPool[channelID].Peers.size()==0 || (ChannelsPool[channelID].CloseOnLeave && ChannelsPool[channelID].Master==ID)){
+			if (Callbacks.ChannelClosed!=NULL) Callbacks.ChannelClosed(channelID);
+			Log("Channel "+ChannelsPool[channelID].Name+" closed", 12);
+			for (uint16_t&peerID : ChannelsPool[channelID].Peers) {
+				for (unsigned int i=0; i<PeersPool[peerID].Channels.size(); ++i) if (PeersPool[peerID].Channels.at(i)==channelID) PeersPool[peerID].Channels.erase(PeersPool[peerID].Channels.begin()+i);
+				PeerDroppedFromChannel(channelID, peerID);
+			}
+			ChannelNames.erase(ChannelsPool[channelID].Name);
+			ChannelsPool.Deallocate(channelID);
+		} else {
+			if (ChannelsPool[channelID].Master==ID){
+				if (GiveNewMaster && ChannelsPool[channelID].Peers.size()>0) ChannelsPool[channelID].Master=ChannelsPool[channelID].Peers.at(0);
+				else ChannelsPool[channelID].Master=65535;
+			}
+			PeerLeftChannel(channelID, ID);
+		}
+	}
+	Selector.remove(*PeersPool[ID].Socket);
+	delete PeersPool[ID].Socket;
+	PeersPool.Deallocate(ID);
+}
+
+void RedRelayServer::Start(uint16_t Port){
+	{
+		std::streambuf* previous = sf::err().rdbuf();
+		sf::err().rdbuf(NULL);
+		if (TcpListener.listen(Port) != sf::Socket::Done || UdpSocket.bind(Port) != sf::Socket::Done){
+			if (Callbacks.Error!=NULL) Callbacks.Error("Could not bind port "+std::to_string(Port));
+			Log("Error: Could not bind port "+std::to_string(Port), 4);
+			return;
+		}
+		sf::err().rdbuf(previous);
+	}
+	if (Callbacks.ServerStart!=NULL) Callbacks.ServerStart(Port);
+	Log(GetVersion() +" started on port "+std::to_string(Port), 12);
+#ifdef REDRELAY_EPOLL
+	#ifdef _WIN32
+		WelcomeMessage+=", libwepoll";
+		Log("Extended poll enabled (github.com/piscisaureus/wepoll)", 12);
+	#else
+		WelcomeMessage+=", epoll";
+		Log("Extended poll enabled", 12);
+	#endif
+
+	Selector.add(TcpListener, 0);
+	Selector.add(UdpSocket, 1);
+#else
+	Selector.add(TcpListener);
+	Selector.add(UdpSocket);
+#endif
+
+	float WaitTime=1.f;
+	float LastPing=0;
+	Running=true;
+
+	while (Running){
+
+	#ifdef REDRELAY_EPOLL
+		uint32_t events = Selector.wait(WaitTime*1000);
+		for (uint32_t i=0; i<events; ++i){
+			if (Selector.at(i) == 1) ReceiveUdp();
+			else
+
+			if ((Selector.at(i)&0x20000) != 0) ReceiveTcp(Selector.at(i)&65535);
+			else
+
+			if (Selector.at(i) == 0) NewConnection();
+			else
+
+			if ((Selector.at(i)&0x10000) != 0) HandleConnection(Selector.at(i)&65535);
+		}
+	#else
+		if (Selector.wait(sf::seconds(WaitTime))){
+			if (Selector.isReady(UdpSocket)) ReceiveUdp();
+
+			for (uint32_t i=0; i<PeersPool.Size(); ++i) if (Selector.isReady(*PeersPool.GetAllocated().at(i).element->Socket)) ReceiveTcp(PeersPool.GetAllocated().at(i).index);
+
+			if (Selector.isReady(TcpListener)) NewConnection();
+
+			for (uint32_t i=0; i<ConnectionsPool.Size(); ++i) if (Selector.isReady(*ConnectionsPool.GetAllocated().at(i).element->Socket)) HandleConnection(ConnectionsPool.GetAllocated().at(i).index);
+		}
+	#endif
+
+		if (PingInterval!=0){
+			WaitTime-=DeltaTime();
+			if (Timer()>=LastPing+1.f){
+				WaitTime=1.f;
+				LastPing=Timer();
+				packet.Clear();
+				packet.SetType(11);
+				const char* tmp = packet.GetPacket();
+				for (uint32_t i=0; i<PeersPool.Size(); ++i){
+					if (PeersPool.GetAllocated().at(i).element->LastPing+(PingInterval*2) < LastPing){
+						DropPeer(PeersPool.GetAllocated().at(i).index);
+					} else if (PeersPool.GetAllocated().at(i).element->LastPing+PingInterval < LastPing) {
+						UdpSocket.send(tmp, 1, PeersPool.GetAllocated().at(i).element->Socket->getRemoteAddress(), PeersPool.GetAllocated().at(i).element->UdpPort);
+						PeersPool.GetAllocated().at(i).element->Socket->send(tmp, packet.GetPacketSize());
+					}
+				}
+			}
+		}
+	}
+	ConnectionsPool.Clear();
+	PeersPool.Clear();
+	ChannelsPool.Clear();
+	ChannelNames.clear();
+}
+
+void RedRelayServer::Stop(){
+	Running=false;
+}
+
+bool RedRelayServer::IsRunning(){
+	return Running;
+}
+
+}
