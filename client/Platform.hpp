@@ -3,23 +3,23 @@
 #ifndef PLATFORM_IDENTIFIER
 #define PLATFORM_IDENTIFIER
 
-#if __amd64__  || __x86_64__ || __amd64 || __x86_64 || _M_AMD64 || _M_X64
+#if defined(__amd64__)  || defined(__x86_64__) || defined(__amd64) || defined(__x86_64) || defined(_M_AMD64) || defined(_M_X64)
     #define ARCHITECTURE "x86_64"
-#elif __i386__ || _M_X86 || _M_IX86
+#elif defined(__i386__) || defined(_M_X86) || defined(_M_IX86)
 	#define ARCHITECTURE "x86"
-#elif __ARM_ARCH_7__
+#elif defined(__ARM_ARCH_7__)
 	#define ARCHITECTURE "ARMv7"
-#elif __arm__ || _M_ARM
+#elif defined(__arm__) || defined(_M_ARM)
 	#define ARCHITECTURE "ARMv6"
 #endif
 
-#ifdef __linux__
+#if defined(__linux__)
 	#define OPERATING_SYSTEM "Linux"
-#elif _WIN32
+#elif defined(_WIN32)
     #define OPERATING_SYSTEM "Windows"
-#elif __FreeBSD__  || __NetBSD__  || __OpenBSD__ || __DragonFly__
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
     #define OPERATING_SYSTEM "BSD"
-#elif __APPLE__
+#elif defined(__APPLE__)
 	#define OPERATING_SYSTEM "Mac OS"
 #endif
 
