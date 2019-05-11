@@ -308,6 +308,7 @@ void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t
 							if (GiveNewMaster && ChannelsPool[channelID].Peers.size()>0) ChannelsPool[channelID].Master=ChannelsPool[channelID].Peers.at(0);
 							else ChannelsPool[channelID].Master=65000;
 						}
+						PeerDroppedFromChannel(channelID, ID);
 						PeerLeftChannel(channelID, ID);
 					}
 				}
