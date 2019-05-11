@@ -1,5 +1,5 @@
 # RedRelay
-RedRelay is a C++ networking library reimplementing Lacewing Relay protocol - an IRC-like protocol where peers have their unique IDs and names, can join channels and transmit data packets through TCP or UDP that can be used for chat, games, VoIP, data sharing, etc.
+RedRelay is a C++ networking library reimplementing Lacewing Relay protocol - an IRC-like protocol where peers have their unique IDs and names, can join channels and transmit data packets through TCP or UDP - can be used for chat, games, VoIP, data sharing, etc.
 
 It is cross-platform and allows to use it not only in C++, but also as a Clickeam Fusion extension, or, for example, in Lua. 
 
