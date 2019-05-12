@@ -79,7 +79,7 @@ int EpollSelector::wait(int timeout){
     #ifdef KQUEUE
     timespec ts;
     ts.tv_sec = timeout/1000;
-    ts.tv_nsec = (timeout-ts.tv_sec*1000)*1000;
+    ts.tv_nsec = (timeout-ts.tv_sec*1000)*1000000;
     return kevent(epoll_fd, NULL, 0, events, maxevents, &ts);
     #else
     return epoll_wait(epoll_fd, events, maxevents, timeout);
