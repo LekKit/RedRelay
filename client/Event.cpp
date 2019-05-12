@@ -136,10 +136,7 @@ int32_t Event::Int(uint32_t Index) const {
 float Event::Float(uint32_t Index) const {
 	if (m_string.length()<Index+4) return 0;
 	float output;
-	*((char*)(&output)+3) = m_string[Index+3];
-	*((char*)(&output)+2) = m_string[Index+2];
-	*((char*)(&output)+1) = m_string[Index+1];
-	*((char*)(&output))   = m_string[Index];
+	memcpy(&output, &m_string[Index], 4);
 	return output;
 }
 
