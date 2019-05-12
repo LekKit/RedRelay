@@ -24,18 +24,30 @@
 #ifndef EPOLL_SELECTOR
 #define EPOLL_SELECTOR
 
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) || defined(__APPLE__)
+    #define KQUEUE
+#endif
+
 #ifdef __linux__
-#include <unistd.h>
-#include <sys/epoll.h>
-#define epoll_close(fd) close(fd)
-typedef int epolld;
-#define INVAL_FD -1
+	#include <unistd.h>
+	#include <sys/epoll.h>
+	#define epoll_close(fd) close(fd)
+	typedef int epolld;
+	#define INVAL_FD -1
 #elif __WIN32
-#include "wepoll.h"
-typedef HANDLE epolld;
-#define INVAL_FD NULL
+	#include "wepoll.h"
+	typedef HANDLE epolld;
+	#define INVAL_FD NULL
+#elif KQUEUE
+    #include <unistd.h>
+    #include <sys/types.h>
+    #include <sys/event.h>
+    #define epoll_close(fd) close(fd)
+    typedef struct kevent epoll_event;
+    typedef int epolld;
+    #define INVAL_FD -1
 #else
-#error Epoll not supported on target platform
+	#error Extended polling not supported on target platform
 #endif
 
 class EpollSelector{
@@ -50,8 +62,8 @@ public:
     void remove(const sf::Socket& sock);
     void mod(const sf::Socket& sock, uint32_t id);
     int wait(int timeout=-1);
-    const epoll_event& getevent(uint32_t id) const;
-    uint32_t at(uint32_t id) const;
+    uint32_t at(uint32_t index) const;
+    void* ptr(uint32_t index) const;
 };
 
 #endif
