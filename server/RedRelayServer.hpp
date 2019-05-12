@@ -157,7 +157,6 @@ private:
     float Timer();
 
     //Logging
-    std::string DualDigit(uint8_t num);
     void Log(std::string message, uint8_t colour=15);
 
     //Peers and connections related stuff
