@@ -39,7 +39,7 @@ float RedRelayServer::Timer(){
 	return TimerClock.getElapsedTime().asMilliseconds()*0.001;
 }
 
-std::string RedRelayServer::DualDigit(uint8_t num){
+static std::string DualDigit(uint8_t num){
 	std::string str = std::to_string(num);
 	return ("00"+str).substr(str.length(), 2);
 }
