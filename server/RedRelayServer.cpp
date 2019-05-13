@@ -773,10 +773,13 @@ void RedRelayServer::Start(uint16_t Port){
 			}
 		}
 	}
+	Log("Stopping the server...", 12);
 	ConnectionsPool.Clear();
 	PeersPool.Clear();
 	ChannelsPool.Clear();
 	ChannelNames.clear();
+	TcpListener.close();
+	UdpSocket.unbind();
 }
 
 void RedRelayServer::Stop(){
