@@ -774,12 +774,15 @@ void RedRelayServer::Start(uint16_t Port){
 		}
 	}
 	Log("Stopping the server...", 12);
+	for (IndexedElement<Connection>&it : ConnectionsPool.GetAllocated()) delete it.element->Socket;
+	for (IndexedElement<Peer>&it : PeersPool.GetAllocated()) delete it.element->Socket;
 	ConnectionsPool.Clear();
 	PeersPool.Clear();
 	ChannelsPool.Clear();
 	ChannelNames.clear();
 	TcpListener.close();
 	UdpSocket.unbind();
+	Log("Server closed", 12);
 }
 
 void RedRelayServer::Stop(){
