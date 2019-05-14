@@ -36,6 +36,10 @@
 #include "EpollSelector.hpp"
 #endif
 
+#ifdef REDRELAY_MULTITHREAD
+#include <thread>
+#endif
+
 namespace rs{
 
 class RelayPacket{
@@ -129,7 +133,11 @@ private:
     bool GiveNewMaster, LoggingEnabled;
     uint8_t PingInterval;
     std::string WelcomeMessage;
-    bool Running;
+    #ifdef REDRELAY_MULTITHREAD
+    volatile bool Running, Destructible;
+    #else
+    bool Running, Destructible;
+    #endif
 
     //Packet buffer
     RelayPacket packet;
@@ -150,14 +158,15 @@ private:
     sf::SocketSelector Selector;
 #endif
 
+#ifdef REDRELAY_MULTITHREAD
+    void UdpHandler();
+#endif
+
     //Timers
     sf::Clock DeltaClock;
     sf::Clock TimerClock;
     float DeltaTime();
     float Timer();
-
-    //Logging
-    void Log(std::string message, uint8_t colour=15);
 
     //Peers and connections related stuff
     void DropConnection(uint16_t ID);
@@ -175,7 +184,9 @@ private:
     void HandleConnection(uint16_t ConnectionID);
 public:
     RedRelayServer();
+    ~RedRelayServer();
     std::string GetVersion() const;
+    void Log(std::string message, uint8_t colour=15);
     void SetConnectionsLimit(uint16_t Limit);
     void SetPeersLimit(uint16_t Limit);
     void SetChannelsLimit(uint16_t Limit);
@@ -196,7 +207,7 @@ public:
     void SetServerBlastCallback(void(*ServerMessageBlast)(uint16_t, uint8_t, const char*, std::size_t));
     void DropPeer(uint16_t ID);
     void Start(uint16_t Port=6121);
-    void Stop();
+    void Stop(bool Block=false);
     bool IsRunning();
 };
 
