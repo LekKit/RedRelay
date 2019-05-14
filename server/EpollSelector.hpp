@@ -34,7 +34,7 @@
 	#define epoll_close(fd) close(fd)
 	typedef int epolld;
 	#define INVAL_FD -1
-#elif __WIN32
+#elif _WIN32
 	#include "wepoll.h"
 	typedef HANDLE epolld;
 	#define INVAL_FD NULL
@@ -63,7 +63,6 @@ public:
     void mod(const sf::Socket& sock, uint32_t id);
     int wait(int timeout=-1);
     uint32_t at(uint32_t index) const;
-    void* ptr(uint32_t index) const;
 };
 
 #endif
