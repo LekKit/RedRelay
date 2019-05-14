@@ -443,12 +443,10 @@ void RedRelayServer::NewConnection(){
 	}
 }
 
-uint32_t laststatus;
-
 void RedRelayServer::ReceiveUdp(){
 	sf::IpAddress UdpAddress; uint16_t UdpPort;
 	std::size_t received;
-	laststatus = UdpSocket.receive(UdpBuffer, 65536, received, UdpAddress, UdpPort);
+	UdpSocket.receive(UdpBuffer, 65536, received, UdpAddress, UdpPort);
 	switch (((uint8_t)UdpBuffer[0])>>4){
 	case 2: //Identifier 2 means ChannelMessage - broadcast message to all peers in given channel
 	{
