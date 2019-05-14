@@ -2,8 +2,8 @@
 //
 // This is an altered "Socket.hpp" header of SFML Network library.
 // Modified by LekKit for Epoll support in RedRelay Server.
-// Purpose: public access to socket handle
-// Altered line: 149
+// Purpose: public access & inlining getHandle() 
+// Altered lines: 149 - 153
 //
 ////////////////////////////////////////////////////////////
 
@@ -146,7 +146,11 @@ protected:
     /// \return The internal (OS-specific) handle of the socket
     ///
     ////////////////////////////////////////////////////////////
-    public: SocketHandle getHandle() const; protected:
+public:
+	SocketHandle getHandle() const{
+		return m_socket;
+	}
+protected:
 
     ////////////////////////////////////////////////////////////
     /// \brief Create the internal representation of the socket
