@@ -442,10 +442,13 @@ void RedRelayServer::NewConnection(){
 		ConnectionsPool.Deallocate(connectID);
 	}
 }
+
+uint32_t laststatus;
+
 void RedRelayServer::ReceiveUdp(){
 	sf::IpAddress UdpAddress; uint16_t UdpPort;
 	std::size_t received;
-	UdpSocket.receive(UdpBuffer, 65536, received, UdpAddress, UdpPort);
+	laststatus = UdpSocket.receive(UdpBuffer, 65536, received, UdpAddress, UdpPort);
 	switch (((uint8_t)UdpBuffer[0])>>4){
 	case 2: //Identifier 2 means ChannelMessage - broadcast message to all peers in given channel
 	{
@@ -587,6 +590,7 @@ RedRelayServer::RedRelayServer(){
 	LoggingEnabled=true;
 	WelcomeMessage="RedRelay Server #"+std::to_string(REDRELAY_SERVER_BUILD)+" ("+OPERATING_SYSTEM+"/"+ARCHITECTURE+")";
 	Running=false;
+	Destructible=true;
 }
 
 std::string RedRelayServer::GetVersion() const {
@@ -693,6 +697,14 @@ void RedRelayServer::DropPeer(uint16_t ID){
 	PeersPool.Deallocate(ID);
 }
 
+#ifdef REDRELAY_MULTITHREAD
+void RedRelayServer::UdpHandler(){
+    while (Running){
+        ReceiveUdp(); //This will block until there's data to receive or socket is closed
+    }
+}
+#endif
+
 void RedRelayServer::Start(uint16_t Port){
 	{
 		std::streambuf* previous = sf::err().rdbuf();
@@ -706,33 +718,52 @@ void RedRelayServer::Start(uint16_t Port){
 	}
 	if (Callbacks.ServerStart!=NULL) Callbacks.ServerStart(Port);
 	Log(GetVersion() +" started on port "+std::to_string(Port), 12);
+
 #ifdef REDRELAY_EPOLL
 	#ifdef _WIN32
 		WelcomeMessage+=", libwepoll";
 		Log("Extended poll enabled (github.com/piscisaureus/wepoll)", 12);
+	#elif KQUEUE
+        WelcomeMessage+=", kqueue";
+		Log("Extended poll enabled (kqueue)", 12);
 	#else
 		WelcomeMessage+=", epoll";
 		Log("Extended poll enabled", 12);
 	#endif
 
 	Selector.add(TcpListener, 0);
+
+	#ifndef REDRELAY_MULTITHREAD
 	Selector.add(UdpSocket, 1);
+	#endif
 #else
 	Selector.add(TcpListener);
+
+	#ifndef REDRELAY_MULTITHREAD
 	Selector.add(UdpSocket);
+	#endif
 #endif
 
 	float WaitTime=1.f;
-	float LastPing=0;
+	float LastPing=0.f;
 	Running=true;
+    Destructible=false;
+
+#ifdef REDRELAY_MULTITHREAD
+	Log("Multi-threading enabled", 12);
+    std::thread UdpThread(&RedRelayServer::UdpHandler, this);
+#endif
 
 	while (Running){
 
 	#ifdef REDRELAY_EPOLL
 		uint32_t events = Selector.wait(WaitTime*1000);
 		for (uint32_t i=0; i<events; ++i){
+
+            #ifndef REDRELAY_MULTITHREAD
 			if (Selector.at(i) == 1) ReceiveUdp();
 			else
+            #endif
 
 			if ((Selector.at(i)&0x20000) != 0) ReceiveTcp(Selector.at(i)&65535);
 			else
@@ -744,7 +775,10 @@ void RedRelayServer::Start(uint16_t Port){
 		}
 	#else
 		if (Selector.wait(sf::seconds(WaitTime))){
+
+            #ifndef REDRELAY_MULTITHREAD
 			if (Selector.isReady(UdpSocket)) ReceiveUdp();
+            #endif
 
 			for (uint32_t i=0; i<PeersPool.Size(); ++i) if (Selector.isReady(*PeersPool.GetAllocated().at(i).element->Socket)) ReceiveTcp(PeersPool.GetAllocated().at(i).index);
 
@@ -781,12 +815,22 @@ void RedRelayServer::Start(uint16_t Port){
 	ChannelsPool.Clear();
 	ChannelNames.clear();
 	TcpListener.close();
-	UdpSocket.unbind();
-	Log("Server closed", 12);
+	UdpSocket.unbind(); //this should have unblocked the UDP thread
+#ifdef REDRELAY_MULTITHREAD
+    UdpThread.join();
+#endif
+    Log("Server closed", 12);
+    Destructible=true;
 }
 
-void RedRelayServer::Stop(){
+RedRelayServer::~RedRelayServer(){
+    Running=false;
+    while(!Destructible) sf::sleep(sf::milliseconds(1));
+}
+
+void RedRelayServer::Stop(bool Block){
 	Running=false;
+	if (Block) while(!Destructible) sf::sleep(sf::milliseconds(1));
 }
 
 bool RedRelayServer::IsRunning(){
