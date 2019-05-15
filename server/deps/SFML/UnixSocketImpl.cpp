@@ -25,7 +25,7 @@
 ////////////////////////////////////////////////////////////
 // Headers
 ////////////////////////////////////////////////////////////
-#include <SFML/Network/Unix/SocketImpl.hpp>
+#include <SFML/Network/UnixSocketImpl.hpp>
 #include <SFML/System/Err.hpp>
 #include <errno.h>
 #include <fcntl.h>

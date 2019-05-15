@@ -25,7 +25,7 @@
 ////////////////////////////////////////////////////////////
 // Headers
 ////////////////////////////////////////////////////////////
-#include <SFML/System/Unix/ClockImpl.hpp>
+#include <SFML/System/UnixClockImpl.hpp>
 #if defined(SFML_SYSTEM_MACOS) || defined(SFML_SYSTEM_IOS)
     #include <mach/mach_time.h>
 #else
