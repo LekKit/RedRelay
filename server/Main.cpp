@@ -115,7 +115,7 @@ int main(){
 
     while (true){ //In case of failure, retry every 5s
         Server.Start(Port);
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        sf::sleep(sf::seconds(5));
     }
     return 0;
 }
