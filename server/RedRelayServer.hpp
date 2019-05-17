@@ -26,6 +26,7 @@
 
 #define REDRELAY_SERVER_BUILD 9
 
+#include <ctime>
 #include <unordered_map>
 #include <string>
 #include <vector>
@@ -192,6 +193,7 @@ public:
     void SetChannelsLimit(uint16_t Limit);
     void SetChannelsPerPeerLimit(uint16_t Limit);
     void SetWelcomeMessage(const std::string& String);
+    void SetLogEnabled(bool Flag);
     const Peer& GetPeer(uint16_t PeerID);
     const Channel& GetChannel(uint16_t ChannelID);
     void SetErrorCallback(void(*Error)(const std::string& ErrorMessage));

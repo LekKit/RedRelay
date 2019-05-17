@@ -32,11 +32,11 @@
 namespace rs{
 
 float RedRelayServer::DeltaTime(){
-	return DeltaClock.restart().asMilliseconds()*0.001;
+	return DeltaClock.restart().asMilliseconds()*0.001f;
 }
 
 float RedRelayServer::Timer(){
-	return TimerClock.getElapsedTime().asMilliseconds()*0.001;
+	return TimerClock.getElapsedTime().asMilliseconds()*0.001f;
 }
 
 static std::string DualDigit(uint8_t num){
@@ -490,7 +490,7 @@ void RedRelayServer::ReceiveUdp(){
 		uint16_t peerID=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
 		if (PeersPool.Allocated(peerID) && (PeersPool[peerID].UdpPort==0 || PeersPool[peerID].UdpPort==UdpPort) && UdpAddress==PeersPool[peerID].Socket->getRemoteAddress()){
 			PeersPool[peerID].UdpPort=UdpPort;
-			UdpBuffer[0]=10<<4;
+			UdpBuffer[0]=(uint8_t)(10<<4);
 			UdpSocket.send(UdpBuffer, 1, UdpAddress, UdpPort);
 		}
 	}
@@ -613,6 +613,10 @@ void RedRelayServer::SetChannelsPerPeerLimit(uint16_t Limit){
 
 void RedRelayServer::SetWelcomeMessage(const std::string& String){
 	WelcomeMessage=String;
+}
+
+void RedRelayServer::SetLogEnabled(bool Flag){
+	LoggingEnabled=Flag;
 }
 
 const Peer& RedRelayServer::GetPeer(uint16_t PeerID){
