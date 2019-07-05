@@ -61,6 +61,9 @@ void Binary::Clear(){
 	size=0;
 }
 
+/* By almost any compiler this should be optimized into
+   direct copy, with byte reversing on big-endian CPU */
+
 void Binary::AddByte(uint8_t Byte){
 	while (size+6+1>capacity) Reallocate(capacity*2);
 	buffer[6+size++]=Byte;
@@ -80,12 +83,28 @@ void Binary::AddInt(uint32_t Int){
 	buffer[6+size++]=(Int>>24)&255;
 }
 
+void Binary::AddLong(uint64_t Long){
+	while (size+6+8>capacity) Reallocate(capacity*2);
+	buffer[6+size++]=Long&255;
+	buffer[6+size++]=(Long>>8)&255;
+	buffer[6+size++]=(Long>>16)&255;
+	buffer[6+size++]=(Long>>24)&255;
+	buffer[6+size++]=(Long>>32)&255;
+	buffer[6+size++]=(Long>>40)&255;
+	buffer[6+size++]=(Long>>48)&255;
+	buffer[6+size++]=(Long>>56)&255;
+}
+
 void Binary::AddFloat(float Float){
-	while (size+6+4>capacity) Reallocate(capacity*2);
-	buffer[6+size++]=*(char*)(&Float);
-	buffer[6+size++]=*((char*)(&Float)+1);
-	buffer[6+size++]=*((char*)(&Float)+2);
-	buffer[6+size++]=*((char*)(&Float)+3);
+	uint32_t tmp;
+	memcpy(&tmp, &Float, 4);
+	AddInt(tmp);
+}
+
+void Binary::AddDouble(double Double){
+	uint64_t tmp;
+	memcpy(&tmp, &Double, 8);
+	AddLong(tmp);
 }
 
 void Binary::AddString(const std::string& String){

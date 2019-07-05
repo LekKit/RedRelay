@@ -109,8 +109,7 @@ uint8_t Event::UByte(uint32_t Index) const {
 }
 
 int8_t Event::Byte(uint32_t Index) const {
-	if (m_string.length()<Index+1) return 0;
-	return m_string[Index];
+	return (int8_t)UByte(Index);
 }
 
 uint16_t Event::UShort(uint32_t Index) const {
@@ -119,8 +118,7 @@ uint16_t Event::UShort(uint32_t Index) const {
 }
 
 int16_t Event::Short(uint32_t Index) const {
-	if (m_string.length()<Index+2) return 0;
-	return (uint8_t)m_string[Index]|(uint8_t)m_string[Index+1]<<8;
+	return (int16_t)UShort(Index);
 }
 
 uint32_t Event::UInt(uint32_t Index) const {
@@ -129,15 +127,30 @@ uint32_t Event::UInt(uint32_t Index) const {
 }
 
 int32_t Event::Int(uint32_t Index) const {
-	if (m_string.length()<Index+4) return 0;
-	return (uint8_t)m_string[Index]|(uint8_t)m_string[Index+1]<<8|(uint8_t)m_string[Index+2]<<16|(uint8_t)m_string[Index+3]<<24;
+	return (int32_t)UInt(Index);
+}
+
+uint64_t Event::ULong(uint32_t Index) const {
+	if (m_string.length()<Index+8) return 0;
+	return (uint64_t)UInt(Index) | (uint64_t)UInt(Index+4)<<32;
+}
+
+int64_t Event::Long(uint32_t Index) const {
+    return (int64_t)ULong(Index);
 }
 
 float Event::Float(uint32_t Index) const {
-	if (m_string.length()<Index+4) return 0;
+	uint32_t tmp = UInt(Index);
 	float output;
-	memcpy(&output, &m_string[Index], 4);
+	memcpy(&output, &tmp, 4);
 	return output;
+}
+
+double Event::Double(uint32_t Index) const {
+    uint64_t tmp = ULong(Index);
+    double output;
+    memcpy(&output, &tmp, 8);
+    return output;
 }
 
 std::string Event::String(uint32_t Index) const {
