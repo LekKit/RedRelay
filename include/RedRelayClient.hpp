@@ -131,7 +131,10 @@ public:
     int16_t Short(uint32_t Index) const;
     uint32_t UInt(uint32_t Index) const;
     int32_t Int(uint32_t Index) const;
+    uint64_t ULong(uint32_t Index) const;
+    int64_t Long(uint32_t Index) const;
     float Float(uint32_t Index) const;
+    double Double(uint32_t Index) const;
     std::string String(uint32_t Index) const;
     std::string String(uint32_t Index, uint32_t Size) const;
 };
@@ -154,7 +157,9 @@ public:
     void AddByte(uint8_t Byte);
     void AddShort(uint16_t Short);
     void AddInt(uint32_t Int);
+    void AddLong(uint64_t Long);
     void AddFloat(float Float);
+    void AddDouble(double Double);
     void AddString(const std::string& String);
     void AddNullString(const std::string& String);
     void AddBinary(const void* Data, std::size_t Size);
