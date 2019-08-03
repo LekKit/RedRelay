@@ -718,7 +718,9 @@ void RedRelayServer::Start(uint16_t Port){
 		}
 		sf::err().rdbuf(previous);
 	}
+        #ifdef SIGPIPE
 	signal(SIGPIPE, SIG_IGN); //Ignore writes to closed socket
+        #endif
 	if (Callbacks.ServerStart!=NULL) Callbacks.ServerStart(Port);
 	Log(GetVersion() +" started on port "+std::to_string(Port), 12);
 
