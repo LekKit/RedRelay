@@ -63,7 +63,10 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 endif()
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-	set (LINKERFLAGS "${LINKERFLAGS} -s -flto")
+	set (LINKERFLAGS "${LINKERFLAGS} -s")
+	if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" OR ${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+		set (LINKERFLAGS "${LINKERFLAGS} -flto")
+	endif()
 endif()
 
 set(CMAKE_EXE_LINKER_FLAGS_RELEASE ${LINKERFLAGS} CACHE STRING "Flags used by the linker during RELEASE builds." FORCE)
