@@ -27,7 +27,7 @@
 #include <streambuf>
 #include <iostream>
 #include <cstring>
-
+#include <csignal>
 
 namespace rs{
 
@@ -718,6 +718,7 @@ void RedRelayServer::Start(uint16_t Port){
 		}
 		sf::err().rdbuf(previous);
 	}
+	signal(SIGPIPE, SIG_IGN); //Ignore writes to closed socket
 	if (Callbacks.ServerStart!=NULL) Callbacks.ServerStart(Port);
 	Log(GetVersion() +" started on port "+std::to_string(Port), 12);
 
