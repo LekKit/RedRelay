@@ -25,20 +25,20 @@
 #define EPOLL_SELECTOR
 
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) || defined(__APPLE__)
-    #define KQUEUE
+    #define KQUEUE 1
 #endif
 
 #ifdef __linux__
-	#include <unistd.h>
-	#include <sys/epoll.h>
-	#define epoll_close(fd) close(fd)
-	typedef int epolld;
-	#define INVAL_FD -1
-#elif _WIN32
-	#include "wepoll.h"
-	typedef HANDLE epolld;
-	#define INVAL_FD NULL
-#elif KQUEUE
+    #include <unistd.h>
+    #include <sys/epoll.h>
+    #define epoll_close(fd) close(fd)
+    typedef int epolld;
+    #define INVAL_FD -1
+#elif defined(_WIN32)
+    #include "wepoll.h"
+    typedef HANDLE epolld;
+    #define INVAL_FD NULL
+#elif defined(KQUEUE)
     #include <unistd.h>
     #include <sys/types.h>
     #include <sys/event.h>
@@ -47,7 +47,7 @@
     typedef int epolld;
     #define INVAL_FD -1
 #else
-	#error Extended polling not supported on target platform
+    #error Extended polling not supported on target platform
 #endif
 
 class EpollSelector{
