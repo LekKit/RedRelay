@@ -17,11 +17,21 @@ macro(set_option var default type docstring)
     set(${var} ${${var}} CACHE ${type} ${docstring} FORCE)
 endmacro()
 
+set_option(REDRELAY_EXAMPLE TRUE BOOL "Build example RedRelay Client application")
+set_option(SFML_FORCE_STATIC FALSE BOOL "Force building SFML from deps instead of using a pre-installed lib")
+
 project(RedRelayClient VERSION 9)
 
-find_package(SFML 2.5 COMPONENTS network)
-if (NOT SFML_FOUND)
-	message(STATUS "SFML not found. Proceeding to build a minimal version from ../deps")
+if (NOT SFML_FORCE_STATIC)
+    find_package(SFML 2.5 COMPONENTS network)
+endif()
+if (NOT SFML_FOUND AND NOT SFML_FORCE_STATIC)
+    message(STATUS "SFML not found. Proceeding to build a minimal version from ../deps")
+endif()
+if (SFML_FORCE_STATIC)
+    message(STATUS "Forced to build a minimal version of SFML from ../deps")
+endif()
+if (NOT SFML_FOUND OR SFML_FORCE_STATIC)
 	add_definitions(-DSFML_STATIC)
 	include_directories(../deps)
     list (APPEND REDRELAY_SOURCES ../deps/SFML/Err.cpp ../deps/SFML/Time.cpp ../deps/SFML/Sleep.cpp ../deps/SFML/Clock.cpp ../deps/SFML/Lock.cpp ../deps/SFML/Mutex.cpp
@@ -34,3 +44,30 @@ if (NOT SFML_FOUND)
 endif()
 
 add_library(redrelay-client STATIC ${REDRELAY_SOURCES} RedRelayClient.cpp Channel.cpp Event.cpp Binary.cpp PacketReader.cpp)
+
+if (REDRELAY_EXAMPLE)
+    message(STATUS "Example RedRelay application will be built")
+    add_executable(RedRelayExample Main.cpp)
+
+    if (SFML_FOUND AND NOT SFML_FORCE_STATIC)
+        list (APPEND REDRELAY_LIBS sfml-network sfml-system)
+    endif()
+
+    if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+        list (APPEND REDRELAY_LIBS winmm ws2_32)
+        if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
+            set (LINKERFLAGS "${LINKERFLAGS} -static")
+        endif()
+    endif()
+
+    if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
+        set (LINKERFLAGS "${LINKERFLAGS} -s")
+        if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" OR ${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+            set (LINKERFLAGS "${LINKERFLAGS} -flto")
+        endif()
+    endif()
+
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE ${LINKERFLAGS} CACHE STRING "Flags used by the linker during RELEASE builds." FORCE)
+
+    target_link_libraries(RedRelayExample PUBLIC redrelay-client ${REDRELAY_LIBS})
+endif()
