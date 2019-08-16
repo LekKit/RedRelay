@@ -18,7 +18,7 @@ int main(int argc, char** argv){
                 case rc::Event::Connected:
                     std::cout<<"Connected to "<<Client.GetHostAddress()<<", self ID: "<<Client.SelfID()<<", welcome message: "<<i.WelcomeMessage()<<std::endl;
                     Client.RequestChannelsList();
-                    Client.JoinChannel("");
+                    Client.SetName("peer_"+std::to_string(Client.SelfID()));
                     break;
                 case rc::Event::ConnectDenied:
                     std::cout<<"Connection denied: "<<i.DenyMessage();
