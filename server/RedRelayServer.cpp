@@ -29,14 +29,15 @@
 #include <cstring>
 #include <csignal>
 
+#ifdef REDRELAY_DEVBUILD
+    #define DebugLog(a) Log(a, 12)
+#else
+    #define DebugLog
+#endif
 namespace rs{
 
 float RedRelayServer::DeltaTime(){
 	return DeltaClock.restart().asMilliseconds()*0.001f;
-}
-
-float RedRelayServer::Timer(){
-	return TimerClock.getElapsedTime().asMilliseconds()*0.001f;
 }
 
 static std::string DualDigit(uint8_t num){
@@ -48,7 +49,8 @@ void RedRelayServer::Log(std::string message, uint8_t color){
 	if (!LoggingEnabled) return;
 	ChangeConsoleColor(15);
 	time_t now = time(0);
-	std::cout<<"["<<DualDigit(localtime(&now)->tm_hour)<<":"<<DualDigit(localtime(&now)->tm_min)<<":"<<DualDigit(localtime(&now)->tm_sec)<<"] ";
+    struct tm* time = localtime(&now);
+	std::cout<<"["<<DualDigit(time->tm_hour)<<":"<<DualDigit(time->tm_min)<<":"<<DualDigit(time->tm_sec)<<"] ";
 	ChangeConsoleColor(color);
 	std::cout<<message<<std::endl;
 }
@@ -417,7 +419,8 @@ void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t
 		}
 		break;
 	case 9:
-		PeersPool[ID].LastPing=Timer();
+        DebugLog(std::to_string(ID)+" | Ping reply");
+		PeersPool[ID].PingTries=0;
 		break;
 	default:
 		break;
@@ -488,6 +491,7 @@ void RedRelayServer::ReceiveUdp(){
 	{
 		if (received<3) break;
 		uint16_t peerID=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
+        DebugLog(std::to_string(peerID)+" | UDPHello");
 		if (PeersPool.Allocated(peerID) && (PeersPool[peerID].UdpPort==0 || PeersPool[peerID].UdpPort==UdpPort) && UdpAddress==PeersPool[peerID].Socket->getRemoteAddress()){
 			PeersPool[peerID].UdpPort=UdpPort;
 			UdpBuffer[0]=(uint8_t)(10<<4);
@@ -548,7 +552,6 @@ void RedRelayServer::HandleConnection(uint16_t ConnectionID){
 				Log(std::to_string(peerID)+" | Peer connected from "+Connection.Socket->getRemoteAddress().toString(), 14);
 				PeersPool.Allocate(peerID);
 				PeersPool[peerID].Socket=Connection.Socket;
-				PeersPool[peerID].LastPing=Timer();
 				packet.Clear();
 				packet.SetType(0);
 				packet.AddByte(0);
@@ -593,6 +596,10 @@ RedRelayServer::RedRelayServer(){
 
 std::string RedRelayServer::GetVersion() const {
 	return "RedRelay Server #"+std::to_string(REDRELAY_SERVER_BUILD)+" ("+OPERATING_SYSTEM+"/"+ARCHITECTURE+")";
+}
+
+void RedRelayServer::SetPingInterval(uint8_t Interval){
+	PingInterval = Interval;
 }
 
 void RedRelayServer::SetConnectionsLimit(uint16_t Limit){
@@ -722,18 +729,22 @@ void RedRelayServer::Start(uint16_t Port){
 	signal(SIGPIPE, SIG_IGN); //Ignore writes to closed socket
         #endif
 	if (Callbacks.ServerStart!=NULL) Callbacks.ServerStart(Port);
-	Log(GetVersion() +" started on port "+std::to_string(Port), 12);
+	Log(GetVersion() +
+    #ifdef REDRELAY_DEVBUILD
+        " DEVBUILD"+
+    #endif
+        " started on port "+std::to_string(Port), 12);
 
 #ifdef REDRELAY_EPOLL
 	#ifdef _WIN32
 		WelcomeMessage+=", libwepoll";
-		Log("Extended poll enabled (github.com/piscisaureus/wepoll)", 12);
+		Log("Extended polling enabled (github.com/piscisaureus/wepoll)", 12);
 	#elif KQUEUE
         WelcomeMessage+=", kqueue";
-		Log("Extended poll enabled (kqueue)", 12);
+		Log("Extended polling enabled (kqueue)", 12);
 	#else
 		WelcomeMessage+=", epoll";
-		Log("Extended poll enabled", 12);
+		Log("Extended polling enabled", 12);
 	#endif
 
 	Selector.add(TcpListener, 0);
@@ -749,10 +760,9 @@ void RedRelayServer::Start(uint16_t Port){
 	#endif
 #endif
 
-	float WaitTime=1.f;
-	float LastPing=0.f;
-	Running=true;
-    Destructible=false;
+	float WaitTime = PingInterval, LastPing;
+	Running = true;
+    Destructible = false;
 
 #ifdef REDRELAY_MULTITHREAD
 	Log("Multi-threading enabled", 12);
@@ -793,26 +803,36 @@ void RedRelayServer::Start(uint16_t Port){
 		}
 	#endif
 
-		if (PingInterval!=0){
-			WaitTime-=DeltaTime();
-			if (Timer()>=LastPing+1.f){
-				WaitTime=1.f;
-				LastPing=Timer();
+		if (PingInterval != 0){
+			WaitTime -= DeltaTime();
+			if (WaitTime <= 0.1f){
+				WaitTime = PingInterval;
 				packet.Clear();
 				packet.SetType(11);
 				const char* tmp = packet.GetPacket();
+                DebugLog("Ping tick");
 				for (uint32_t i=0; i<PeersPool.Size(); ++i){
-					if (PeersPool.GetAllocated().at(i).element->LastPing+(PingInterval*2) < LastPing){
-						DropPeer(PeersPool.GetAllocated().at(i).index);
-					} else if (PeersPool.GetAllocated().at(i).element->LastPing+PingInterval < LastPing) {
-						UdpSocket.send(tmp, 1, PeersPool.GetAllocated().at(i).element->Socket->getRemoteAddress(), PeersPool.GetAllocated().at(i).element->UdpPort);
-						PeersPool.GetAllocated().at(i).element->Socket->send(tmp, packet.GetPacketSize());
+                    uint16_t peerID = PeersPool.GetAllocated().at(i).index;
+                    if (PeersPool[peerID].PingTries > 2){
+                        DebugLog(std::to_string(peerID)+" | Ping timeout");
+						DropPeer(peerID);
+					} else {
+						if (PeersPool[peerID].PingTries > 0) {
+							DebugLog(std::to_string(PeersPool.GetAllocated().at(i).index)+" | Ping request");
+							UdpSocket.send(tmp, 1, PeersPool[peerID].Socket->getRemoteAddress(), PeersPool[peerID].UdpPort);
+							PeersPool[peerID].Socket->send(tmp, packet.GetPacketSize());
+						}
+						PeersPool[peerID].PingTries++;
 					}
 				}
 			}
 		}
 	}
 	Log("Stopping the server...", 12);
+    UdpSocket.unbind(); //this should have unblocked the UDP thread
+#ifdef REDRELAY_MULTITHREAD
+    UdpThread.join(); //waiting for thread to close
+#endif
 	for (IndexedElement<Connection>&it : ConnectionsPool.GetAllocated()) delete it.element->Socket;
 	for (IndexedElement<Peer>&it : PeersPool.GetAllocated()) delete it.element->Socket;
 	ConnectionsPool.Clear();
@@ -820,10 +840,6 @@ void RedRelayServer::Start(uint16_t Port){
 	ChannelsPool.Clear();
 	ChannelNames.clear();
 	TcpListener.close();
-	UdpSocket.unbind(); //this should have unblocked the UDP thread
-#ifdef REDRELAY_MULTITHREAD
-    UdpThread.join();
-#endif
     Log("Server closed", 12);
     Destructible=true;
 }

@@ -24,7 +24,7 @@
 #ifndef REDRELAY_SERVER
 #define REDRELAY_SERVER
 
-#define REDRELAY_SERVER_BUILD 9
+#define REDRELAY_SERVER_BUILD 10
 
 #include <ctime>
 #include <unordered_map>
@@ -74,7 +74,7 @@ private:
     uint32_t buffbegin=0;
     sf::TcpSocket* Socket=&defsocket;
     uint16_t UdpPort=0;
-    float LastPing=0; //Time of last ping reply from peer
+    uint8_t PingTries=0;
     std::string Name;
     std::vector<uint16_t> Channels; //Channels used by peer, represented as ID
 
@@ -165,7 +165,6 @@ private:
 
     //Timers
     sf::Clock DeltaClock;
-    sf::Clock TimerClock;
     float DeltaTime();
     float Timer();
 
@@ -188,6 +187,7 @@ public:
     ~RedRelayServer();
     std::string GetVersion() const;
     void Log(std::string message, uint8_t colour=15);
+    void SetPingInterval(uint8_t Interval);
     void SetConnectionsLimit(uint16_t Limit);
     void SetPeersLimit(uint16_t Limit);
     void SetChannelsLimit(uint16_t Limit);
