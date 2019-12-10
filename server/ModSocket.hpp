@@ -146,8 +146,9 @@ protected:
     /// \return The internal (OS-specific) handle of the socket
     ///
     ////////////////////////////////////////////////////////////
+    SocketHandle getHandle() const;
 public:
-	SocketHandle getHandle() const{
+	inline SocketHandle GetHandle() const{
 		return m_socket;
 	}
 protected:

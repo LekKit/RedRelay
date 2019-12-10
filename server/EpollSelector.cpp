@@ -44,34 +44,34 @@ EpollSelector::~EpollSelector(){
 void EpollSelector::add(const sf::Socket& sock, uint32_t id){
 	epoll_event event = epoll_event();
     #ifdef KQUEUE
-    EV_SET(&event, sock.getHandle(), EVFILT_READ, EV_ADD, 0, 0, (void*)id);
+    EV_SET(&event, sock.GetHandle(), EVFILT_READ, EV_ADD, 0, 0, (void*)id);
     kevent(epoll_fd, &event, 1, NULL, 0, NULL);
     #else
     event.events=EPOLLIN|EPOLLHUP|EPOLLRDHUP;
     event.data.u32=id;
-    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock.getHandle(), &event);
+    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock.GetHandle(), &event);
     #endif
 }
 
 void EpollSelector::remove(const sf::Socket& sock){
 	epoll_event event = epoll_event();
     #ifdef KQUEUE
-    EV_SET(&event, sock.getHandle(), 0, EV_DELETE, 0, 0, NULL);
+    EV_SET(&event, sock.GetHandle(), 0, EV_DELETE, 0, 0, NULL);
     kevent(epoll_fd, &event, 1, NULL, 0, NULL);
     #else
-    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, sock.getHandle(), &event);
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, sock.GetHandle(), &event);
     #endif
 }
 
 void EpollSelector::mod(const sf::Socket& sock, uint32_t id){
 	epoll_event event = epoll_event();
     #ifdef KQUEUE
-    EV_SET(&event, sock.getHandle(), EVFILT_READ, EV_ADD, 0, 0, (void*)id);
+    EV_SET(&event, sock.GetHandle(), EVFILT_READ, EV_ADD, 0, 0, (void*)id);
     kevent(epoll_fd, &event, 1, NULL, 0, NULL);
     #else
     event.events=EPOLLIN|EPOLLHUP|EPOLLRDHUP;
     event.data.u32=id;
-    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, sock.getHandle(), &event);
+    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, sock.GetHandle(), &event);
     #endif
 }
 
