@@ -88,7 +88,7 @@ int EpollSelector::wait(int timeout){
 
 uint32_t EpollSelector::at(uint32_t id) const {
     #ifdef KQUEUE
-    return (uint32_t)events[id].udata;
+    return (uintptr_t)events[id].udata;
     #else
     return events[id].data.u32;
     #endif
