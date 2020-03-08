@@ -6,6 +6,7 @@ rs::RedRelayServer& Server = *new rs::RedRelayServer;
 std::fstream config;
 uint16_t Port = 6121;
 bool PortSet = false,
+     PingIntervalSet = false,
      LogEnabledSet = false,
      ConnectionsLimitSet = false,
      PeersLimitSet = false,
@@ -24,6 +25,10 @@ bool LoadConfig(){
 \n\
 #Server port\n\
 Port = 6121\n\
+\n\
+#Keepalive ping interval (in seconds)\n\
+#Set to 0 to disable\n\
+PingInterval = 3\n\
 \n\
 #Logging\n\
 LogEnabled = true\n\
@@ -52,6 +57,9 @@ void SetProp(const std::string& PropName, const std::string& PropVal){
     if (PropName == "Port"){
         Port = std::stoi(PropVal);
         PortSet = true;
+    } else if (PropName == "PingInterval"){
+        Server.SetPingInterval(std::stoi(PropVal));
+        PingIntervalSet = true;
     } else if (PropName == "LogEnabled"){
         Server.SetLogEnabled(PropVal=="true");
         LogEnabledSet = true;
@@ -105,6 +113,7 @@ int main(){
         }
         config.clear();
         if (!PortSet) config<<"\nPort = 6121";
+        if (!PingIntervalSet) config<<"\nPingInterval = 3";
         if (!LogEnabledSet) config<<"\nLogEnabled = true";
         if (!ConnectionsLimitSet) config<<"\nConnectionsLimit = 16";
         if (!PeersLimitSet) config<<"\nPeersLimit = 128";
