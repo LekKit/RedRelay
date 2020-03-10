@@ -85,6 +85,11 @@ uint16_t Event::PeerID() const {
 	return m_short1;
 }
 
+bool Event::PeerWasMaster() const {
+	if (Type != PeerLeft) return false;
+	return m_short3 == 1;
+}
+
 const char* Event::Address() const {
 	return m_string.c_str();
 }

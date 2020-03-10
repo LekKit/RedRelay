@@ -144,7 +144,7 @@ void RedRelayClient::HandleTCP(const char* Msg, std::size_t Size, uint8_t Type){
 				for (uint32_t j=0; j<i.Peers.size(); ++j) if (i.Peers.at(j).ID==peer){
 					if (Size==4){
 						if (i.Peers.at(j).ID==i.Master) i.Master=65535;
-						Events.push_back(Event(Event::PeerLeft, i.Peers.at(j).Name, i.Peers.at(j).ID, i.ID));
+						Events.push_back(Event(Event::PeerLeft, i.Peers.at(j).Name, i.Peers.at(j).ID, i.ID, i.Master==65535));
 						i.Peers.erase(i.Peers.begin()+j);
 						quit=true;
 						break;

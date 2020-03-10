@@ -121,6 +121,7 @@ public:
     uint16_t PeersCount() const;
     std::string PeerName() const;
     uint16_t PeerID() const;
+    bool PeerWasMaster() const;
     const char* Address() const;
     uint32_t Size() const;
     uint8_t Subchannel() const;
