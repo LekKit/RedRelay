@@ -415,6 +415,7 @@ void RedRelayClient::PeerSend(const Binary& Binary, uint16_t PeerID, uint8_t Sub
 void RedRelayClient::ChannelBlast(const void* Data, std::size_t Size, uint8_t Subchannel, uint8_t Variant, uint16_t ChannelID){
 	if (ConnectState<RequestingUdp) return;
 	if (ChannelID==65535) ChannelID=SelectedChannel;
+	if (Size > 65530) Size = 65530;
 	for (const Channel&i : Channels) if (i.ID==ChannelID){
 		UdpBuffer[0]=(2<<4)|(Variant&15);
 		UdpBuffer[1]=PeerID&255;
@@ -435,6 +436,7 @@ void RedRelayClient::ChannelBlast(const Binary& Binary, uint8_t Subchannel, uint
 void RedRelayClient::PeerBlast(const void* Data, std::size_t Size, uint16_t PeerID, uint8_t Subchannel, uint8_t Variant, uint16_t ChannelID){
 	if (ConnectState<RequestingUdp) return;
 	if (ChannelID==65535) ChannelID=SelectedChannel;
+	if (Size > 65528) Size = 65528;
 	for (const Channel&i : Channels) if (i.ID==ChannelID) for (const Peer&j : i.Peers) if (j.ID==PeerID){
 		UdpBuffer[0]=(3<<4)|(Variant&15);
 		UdpBuffer[1]=this->PeerID&255;
