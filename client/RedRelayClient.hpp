@@ -29,7 +29,7 @@
 #include <vector>
 #include <SFML/Network.hpp>
 
-#define REDRELAY_CLIENT_BUILD 9
+#define REDRELAY_CLIENT_BUILD 10
 
 namespace rc{
 
