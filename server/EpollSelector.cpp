@@ -84,8 +84,8 @@ int EpollSelector::wait(int timeout){
     #else
     int ret = epoll_wait(epoll_fd, events, maxevents, timeout);
     #endif
-    if (tmp == -1) tmp = 0;
-    return tmp;
+    if (ret == -1) ret = 0;
+    return ret;
 }
 
 uint32_t EpollSelector::at(uint32_t id) const {
