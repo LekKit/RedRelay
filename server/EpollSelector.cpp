@@ -80,10 +80,12 @@ int EpollSelector::wait(int timeout){
     timespec ts;
     ts.tv_sec = timeout/1000;
     ts.tv_nsec = (timeout-ts.tv_sec*1000)*1000000;
-    return kevent(epoll_fd, NULL, 0, events, maxevents, &ts);
+    int ret = kevent(epoll_fd, NULL, 0, events, maxevents, &ts);
     #else
-    return epoll_wait(epoll_fd, events, maxevents, timeout);
+    int ret = epoll_wait(epoll_fd, events, maxevents, timeout);
     #endif
+    if (tmp == -1) tmp = 0;
+    return tmp;
 }
 
 uint32_t EpollSelector::at(uint32_t id) const {
