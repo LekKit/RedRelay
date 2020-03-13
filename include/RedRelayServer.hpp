@@ -73,6 +73,7 @@ private:
     uint32_t packetsize=0;
     uint32_t buffbegin=0;
     sf::TcpSocket* Socket=&defsocket;
+    uint32_t IpAddr=0;
     uint16_t UdpPort=0;
     uint8_t PingTries=0;
     std::string Name;
@@ -81,11 +82,14 @@ private:
     uint32_t MessageSize() const;
     uint8_t SizeOffset() const;
     bool MessageReady() const;
+    void EraseChannel(uint16_t ChannelID);
+    void AddChannel(uint16_t ChannelID);
 
 public:
     std::string GetName() const;
     const std::vector<uint16_t>& GetJoinedChannels() const;
     sf::IpAddress GetIP() const;
+    bool IsInChannel(uint16_t ChannelID) const;
 };
 
 class Channel{
@@ -95,6 +99,9 @@ private:
     std::vector<uint16_t> Peers; //Peers in channel, represented as ID
     bool HideFromList=false, CloseOnLeave=false; //Channel flags
     uint16_t Master; //Channel master ID
+    
+    void ErasePeer(uint16_t PeerID);
+    void AddPeer(uint16_t PeerID);
 public:
     std::string GetName() const;
     bool IsHidden() const;
@@ -102,6 +109,7 @@ public:
     const std::vector<uint16_t>& GetPeerList() const;
     uint16_t GetPeersCount() const;
     uint16_t GetMasterID() const;
+    bool HasPeer(uint16_t PeerID) const;
 };
 
 class Connection{ //Used for clients before handshake
