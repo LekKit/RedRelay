@@ -73,6 +73,7 @@ private:
     uint32_t packetsize=0;
     uint32_t buffbegin=0;
     sf::TcpSocket* Socket=&defsocket;
+    uint32_t IpAddr=0;
     uint16_t UdpPort=0;
     uint8_t PingTries=0;
     std::string Name;

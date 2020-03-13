@@ -450,38 +450,41 @@ void RedRelayServer::ReceiveUdp(){
 	sf::IpAddress UdpAddress; uint16_t UdpPort;
 	std::size_t received;
 	UdpSocket.receive(UdpBuffer, 65536, received, UdpAddress, UdpPort);
+    if (received < 3) return;
+    uint16_t PeerID = (uint8_t)UdpBuffer[1]|(uint8_t)UdpBuffer[2]<<8;
+    if (!PeersPool.Allocated(PeerID) || PeersPool[PeerID].IpAddr != UdpAddress.toInteger()) return;
 	switch (((uint8_t)UdpBuffer[0])>>4){
 	case 2: //Identifier 2 means ChannelMessage - broadcast message to all peers in given channel
 	{
-		if (received<6) break;
-		uint16_t peer=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
-		if (!PeersPool.Allocated(peer) || PeersPool[peer].Socket->getRemoteAddress()!=UdpAddress || PeersPool[peer].UdpPort!=UdpPort) break;
-		uint16_t channel=(unsigned char)UdpBuffer[4]|(unsigned char)UdpBuffer[5]<<8;
-		if (PeersPool[peer].IsInChannel(channel)){
+		if (received < 6) return;
+		
+		if (PeersPool[PeerID].UdpPort != UdpPort) return;
+		uint16_t DestinationChannel = (uint8_t)UdpBuffer[4]|(uint8_t)UdpBuffer[5]<<8;
+        if (PeersPool[PeerID].IsInChannel(DestinationChannel)){
 			UdpBuffer[1]=UdpBuffer[3];
 			UdpBuffer[2]=UdpBuffer[4];
 			UdpBuffer[3]=UdpBuffer[5];
-			UdpBuffer[4]=peer&255;
-			UdpBuffer[5]=(peer>>8)&255;
-			for (uint16_t peerID : ChannelsPool[channel].Peers) if (peerID!=peer)
-				UdpSocket.send(UdpBuffer, received, PeersPool[peerID].Socket->getRemoteAddress(), PeersPool[peerID].UdpPort);
-			break;
+			UdpBuffer[4]=PeerID&255;
+			UdpBuffer[5]=(PeerID>>8)&255;
+			for (uint16_t Receiver : ChannelsPool[DestinationChannel].Peers) if (Receiver != PeerID)
+				UdpSocket.send(UdpBuffer, received, sf::IpAddress(PeersPool[Receiver].IpAddr), PeersPool[Receiver].UdpPort);
+			return;
 		}
 	}
 	break;
 
 	case 3: //Identifier 3 means PeerMessage - send private message to given peer
 	{
-		if (received<8) break;
-		uint16_t peer=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
-		if (!PeersPool.Allocated(peer) || PeersPool[peer].Socket->getRemoteAddress()!=UdpAddress || PeersPool[peer].UdpPort!=UdpPort) break;
-		uint16_t receiver=(unsigned char)UdpBuffer[6]|(unsigned char)UdpBuffer[7]<<8;
-		uint16_t channel=(unsigned char)UdpBuffer[4]|(unsigned char)UdpBuffer[5]<<8;
-		if (PeersPool.Allocated(receiver) && PeersPool[peer].IsInChannel(channel) && PeersPool[receiver].IsInChannel(channel)){
+		if (received < 8) return;
+
+		if (PeersPool[PeerID].UdpPort != UdpPort) return;
+		uint16_t Receiver = (uint8_t)UdpBuffer[6]|(uint8_t)UdpBuffer[7]<<8;
+		uint16_t DestinationChannel = (uint8_t)UdpBuffer[4]|(uint8_t)UdpBuffer[5]<<8;
+		if (PeersPool.Allocated(Receiver) && PeersPool[PeerID].IsInChannel(DestinationChannel) && PeersPool[Receiver].IsInChannel(DestinationChannel)){
 			UdpBuffer[6]=UdpBuffer[1];
 			UdpBuffer[7]=UdpBuffer[2];
 			UdpBuffer[2]=UdpBuffer[0];
-			UdpSocket.send(&UdpBuffer[2], received-2, PeersPool[receiver].Socket->getRemoteAddress(), PeersPool[receiver].UdpPort);
+			UdpSocket.send(&UdpBuffer[2], received-2, sf::IpAddress(PeersPool[Receiver].IpAddr), PeersPool[Receiver].UdpPort);
 			break;
 		}
 	}
@@ -489,12 +492,10 @@ void RedRelayServer::ReceiveUdp(){
 
 	case 7: //Identifier 7 means UDPHello - respond with UDPWelcome
 	{
-		if (received<3) break;
-		uint16_t peerID=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
-        DebugLog(std::to_string(peerID)+" | UDPHello");
-		if (PeersPool.Allocated(peerID) && (PeersPool[peerID].UdpPort==0 || PeersPool[peerID].UdpPort==UdpPort) && UdpAddress==PeersPool[peerID].Socket->getRemoteAddress()){
-			PeersPool[peerID].UdpPort=UdpPort;
-			UdpBuffer[0]=(uint8_t)(10<<4);
+        DebugLog(std::to_string(PeerID)+" | UDPHello");
+		if (PeersPool[PeerID].UdpPort == 0 || PeersPool[PeerID].UdpPort == UdpPort){
+			PeersPool[PeerID].UdpPort = UdpPort;
+			UdpBuffer[0] = (uint8_t)(10<<4);
 			UdpSocket.send(UdpBuffer, 1, UdpAddress, UdpPort);
 		}
 	}
@@ -554,6 +555,7 @@ void RedRelayServer::HandleConnection(uint16_t ConnectionID){
 				Log(std::to_string(peerID)+" | Peer connected from "+Connection.Socket->getRemoteAddress().toString(), 14);
 				PeersPool.Allocate(peerID);
 				PeersPool[peerID].Socket=Connection.Socket;
+                PeersPool[peerID].IpAddr=Connection.Socket->getRemoteAddress().toInteger();
 				packet.Clear();
 				packet.SetType(0);
 				packet.AddByte(0);
