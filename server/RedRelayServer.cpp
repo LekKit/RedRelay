@@ -28,10 +28,6 @@
 #include <iostream>
 #include <cstring>
 #include <csignal>
-#include <fstream>
-
-void SaveFnaf();
-uint32_t GlobalBytesSent = 0;
 
 #ifdef REDRELAY_DEVBUILD
     #define DebugLog(a) Log(a, 12)
@@ -225,7 +221,7 @@ void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t
 						return;
 					}
 				} else {
-					uint16_t channelID = ChannelNames[ChannelName];
+					uint16_t channelID=ChannelNames[ChannelName];
 					if (Client.IsInChannel(channelID)){
 						DenyChannelJoin(ID, ChannelName, "You are in this channel already");
 						return;
@@ -298,7 +294,7 @@ void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t
 					}
 					Log(std::to_string(ID)+" | Peer "+PeersPool[ID].Name+" left the channel "+ChannelsPool[channelID].Name, 8);
 					Client.EraseChannel(channelID);
-					ChannelsPool[channelID].ErasePeer(ID);
+                    ChannelsPool[channelID].ErasePeer(ID);
 					if (ChannelsPool[channelID].Peers.size()==0 || (ChannelsPool[channelID].CloseOnLeave && ChannelsPool[channelID].Master==ID)){
 						if (Callbacks.ChannelClosed!=NULL) Callbacks.ChannelClosed(channelID);
 						Log("Channel "+ChannelsPool[channelID].Name+" closed", 12);
@@ -311,8 +307,8 @@ void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t
 						ChannelsPool.Deallocate(channelID);
 					} else {
 						if (ChannelsPool[channelID].Master==ID){
-							if (GiveNewMaster && ChannelsPool[channelID].Peers.size()) ChannelsPool[channelID].Master = *ChannelsPool[channelID].Peers.begin();
-							else ChannelsPool[channelID].Master = 65535;
+							if (GiveNewMaster && ChannelsPool[channelID].Peers.size()>0) ChannelsPool[channelID].Master = *ChannelsPool[channelID].Peers.begin();
+							else ChannelsPool[channelID].Master=65000;
 						}
 						PeerDroppedFromChannel(channelID, ID);
 						PeerLeftChannel(channelID, ID);
@@ -338,11 +334,11 @@ void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t
 			packet.SetType(0);
 			packet.AddByte(4);
 			packet.AddByte(true);
-			for (uint32_t ChannelID : ChannelsPool.GetAllocated()){
-				if (!ChannelsPool[ChannelID].HideFromList){
-					packet.AddShort(ChannelsPool[ChannelID].Peers.size());
-					packet.AddByte(ChannelsPool[ChannelID].Name.length());
-					packet.AddString(ChannelsPool[ChannelID].Name);
+			for (IndexedElement<Channel>it : ChannelsPool.GetAllocated()){
+				if (!it.element->HideFromList){
+					packet.AddShort(it.element->Peers.size());
+					packet.AddByte(it.element->Name.length());
+					packet.AddString(it.element->Name);
 				}
 			}
 			Client.Socket->send(packet.GetPacket(), packet.GetPacketSize());
@@ -355,7 +351,7 @@ void RedRelayServer::HandleTCP(uint16_t ID, char* Msg, std::size_t Size, uint8_t
 		{
 			if (Size<3) return;
 			uint16_t channel=(unsigned char)Msg[1]|(unsigned char)Msg[2]<<8;
-			if (Client.IsInChannel(channel)){
+            if (Client.IsInChannel(channel)){
 				char header[11];
 				uint8_t headersize;
 				header[0]=Type;
@@ -454,56 +450,38 @@ void RedRelayServer::ReceiveUdp(){
 	sf::IpAddress UdpAddress; uint16_t UdpPort;
 	std::size_t received;
 	UdpSocket.receive(UdpBuffer, 65536, received, UdpAddress, UdpPort);
-    if (received < 3) return;
-    uint16_t PeerID = (uint8_t)UdpBuffer[1]|(uint8_t)UdpBuffer[2]<<8;
-    if (!PeersPool.Allocated(PeerID) || PeersPool[PeerID].IpAddr != UdpAddress.toInteger()) return;
 	switch (((uint8_t)UdpBuffer[0])>>4){
 	case 2: //Identifier 2 means ChannelMessage - broadcast message to all peers in given channel
 	{
-		if (received < 6) return;
-		
-		if (PeersPool[PeerID].UdpPort != UdpPort) return;
-		uint16_t DestinationChannel = (uint8_t)UdpBuffer[4]|(uint8_t)UdpBuffer[5]<<8;
-        if (PeersPool[PeerID].IsInChannel(DestinationChannel)){
+		if (received<6) break;
+		uint16_t peer=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
+		if (!PeersPool.Allocated(peer) || PeersPool[peer].Socket->getRemoteAddress()!=UdpAddress || PeersPool[peer].UdpPort!=UdpPort) break;
+		uint16_t channel=(unsigned char)UdpBuffer[4]|(unsigned char)UdpBuffer[5]<<8;
+		if (PeersPool[peer].IsInChannel(channel)){
 			UdpBuffer[1]=UdpBuffer[3];
 			UdpBuffer[2]=UdpBuffer[4];
 			UdpBuffer[3]=UdpBuffer[5];
-			UdpBuffer[4]=PeerID&255;
-			UdpBuffer[5]=(PeerID>>8)&255;
-			for (uint16_t Receiver : ChannelsPool[DestinationChannel].Peers) if (Receiver != PeerID){
-                // weird portzero bug
-                if (PeersPool[PeerID].UdpPort == 0){
-                    std::ofstream file("portzero.txt", std::ios_base::ate);
-                    file << "ChannelMessage: channel=" << DestinationChannel << "; allocated=" << (PeersPool.Allocated(PeerID) ? "true" : "false") << "; exists=" << (ChannelsPool.Allocated(DestinationChannel) ? "true" : "false") << ";\n";
-                    file.close();
-                }
-                // !weird portzero bug
-				UdpSocket.send(UdpBuffer, received, sf::IpAddress(PeersPool[Receiver].IpAddr), PeersPool[Receiver].UdpPort);
-            }
-			return;
+			UdpBuffer[4]=peer&255;
+			UdpBuffer[5]=(peer>>8)&255;
+			for (uint16_t peerID : ChannelsPool[channel].Peers) if (peerID!=peer)
+				UdpSocket.send(UdpBuffer, received, PeersPool[peerID].Socket->getRemoteAddress(), PeersPool[peerID].UdpPort);
+			break;
 		}
 	}
 	break;
 
 	case 3: //Identifier 3 means PeerMessage - send private message to given peer
 	{
-		if (received < 8) return;
-
-		if (PeersPool[PeerID].UdpPort != UdpPort) return;
-		uint16_t Receiver = (uint8_t)UdpBuffer[6]|(uint8_t)UdpBuffer[7]<<8;
-		uint16_t DestinationChannel = (uint8_t)UdpBuffer[4]|(uint8_t)UdpBuffer[5]<<8;
-		if (PeersPool.Allocated(Receiver) && PeersPool[PeerID].IsInChannel(DestinationChannel) && PeersPool[Receiver].IsInChannel(DestinationChannel)){
+		if (received<8) break;
+		uint16_t peer=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
+		if (!PeersPool.Allocated(peer) || PeersPool[peer].Socket->getRemoteAddress()!=UdpAddress || PeersPool[peer].UdpPort!=UdpPort) break;
+		uint16_t receiver=(unsigned char)UdpBuffer[6]|(unsigned char)UdpBuffer[7]<<8;
+		uint16_t channel=(unsigned char)UdpBuffer[4]|(unsigned char)UdpBuffer[5]<<8;
+		if (PeersPool.Allocated(receiver) && PeersPool[peer].IsInChannel(channel) && PeersPool[receiver].IsInChannel(channel)){
 			UdpBuffer[6]=UdpBuffer[1];
 			UdpBuffer[7]=UdpBuffer[2];
 			UdpBuffer[2]=UdpBuffer[0];
-            // weird portzero bug
-            if (PeersPool[Receiver].UdpPort == 0){
-                std::ofstream file("portzero.txt", std::ios_base::ate);
-                file << "PeerMessage: channel=" << DestinationChannel << "; allocated=" << (ChannelsPool.Allocated(DestinationChannel) ? "true" : "false") << ";\n";
-                file.close();
-            }
-            // !weird portzero bug
-			UdpSocket.send(&UdpBuffer[2], received-2, sf::IpAddress(PeersPool[Receiver].IpAddr), PeersPool[Receiver].UdpPort);
+			UdpSocket.send(&UdpBuffer[2], received-2, PeersPool[receiver].Socket->getRemoteAddress(), PeersPool[receiver].UdpPort);
 			break;
 		}
 	}
@@ -512,18 +490,11 @@ void RedRelayServer::ReceiveUdp(){
 	case 7: //Identifier 7 means UDPHello - respond with UDPWelcome
 	{
 		if (received<3) break;
-
-        DebugLog(std::to_string(PeerID)+" | UDPHello");
-		if (PeersPool[PeerID].UdpPort == 0 || PeersPool[PeerID].UdpPort == UdpPort){
-            // weird portzero bug
-            if (UdpPort == 0){
-                std::ofstream file("portzero.txt", std::ios_base::ate);
-                file << "UDPHello: structport=" << PeersPool[PeerID].UdpPort << "; allocated=" << (PeersPool.Allocated(PeerID) ? "true" : "false") << ";\n";
-                file.close();
-            }
-            // !weird portzero bug
-			PeersPool[PeerID].UdpPort = UdpPort;
-			UdpBuffer[0] = (uint8_t)(10<<4);
+		uint16_t peerID=(unsigned char)UdpBuffer[1]|(unsigned char)UdpBuffer[2]<<8;
+        DebugLog(std::to_string(peerID)+" | UDPHello");
+		if (PeersPool.Allocated(peerID) && (PeersPool[peerID].UdpPort==0 || PeersPool[peerID].UdpPort==UdpPort) && UdpAddress==PeersPool[peerID].Socket->getRemoteAddress()){
+			PeersPool[peerID].UdpPort=UdpPort;
+			UdpBuffer[0]=(uint8_t)(10<<4);
 			UdpSocket.send(UdpBuffer, 1, UdpAddress, UdpPort);
 		}
 	}
@@ -540,8 +511,6 @@ void RedRelayServer::ReceiveTcp(uint16_t PeerID){
 	switch (Peer.Socket->receive(&Peer.buffer[Peer.buffbegin+Peer.packetsize], 65536-(Peer.buffbegin+Peer.packetsize), received)){
 	case sf::Socket::Done:
 		Peer.packetsize+=received;
-        Peer.bytesSent+=received;
-        GlobalBytesSent += received;
 		while (Peer.MessageReady()){
 			HandleTCP(PeerID, &Peer.buffer[Peer.buffbegin+1+Peer.SizeOffset()], Peer.MessageSize(), Peer.buffer[Peer.buffbegin]);
 			Peer.packetsize -= 1+Peer.SizeOffset()+Peer.MessageSize();
@@ -585,7 +554,6 @@ void RedRelayServer::HandleConnection(uint16_t ConnectionID){
 				Log(std::to_string(peerID)+" | Peer connected from "+Connection.Socket->getRemoteAddress().toString(), 14);
 				PeersPool.Allocate(peerID);
 				PeersPool[peerID].Socket=Connection.Socket;
-                PeersPool[peerID].IpAddr = Connection.Socket->getRemoteAddress().toInteger();
 				packet.Clear();
 				packet.SetType(0);
 				packet.AddByte(0);
@@ -729,7 +697,7 @@ void RedRelayServer::DropPeer(uint16_t ID){
 			ChannelsPool.Deallocate(channelID);
 		} else {
 			if (ChannelsPool[channelID].Master==ID){
-				if (GiveNewMaster && ChannelsPool[channelID].Peers.size()) ChannelsPool[channelID].Master = *ChannelsPool[channelID].Peers.begin();
+				if (GiveNewMaster && ChannelsPool[channelID].Peers.size()>0) ChannelsPool[channelID].Master = *ChannelsPool[channelID].Peers.begin();
 				else ChannelsPool[channelID].Master=65535;
 			}
 			PeerLeftChannel(channelID, ID);
@@ -763,12 +731,6 @@ void RedRelayServer::Start(uint16_t Port){
 	signal(SIGPIPE, SIG_IGN); //Ignore writes to closed socket
         #endif
 	if (Callbacks.ServerStart!=NULL) Callbacks.ServerStart(Port);
-    Log(" ____          _ ____      _             ", 12);
-    Log("|  _ \\ ___  __| |  _ \\ ___| | __ _ _   _ ", 12);
-    Log("| |_) / _ \\/ _` | |_) / _ \\ |/ _` | | | |", 12);
-    Log("|  _ <  __/ (_| |  _ <  __/ | (_| | |_| |", 12);
-    Log("|_| \\_\\___|\\__,_|_| \\_\\___|_|\\__,_|\\__, |", 12);
-    Log("                                   |___/ ", 12);
 	Log(GetVersion() +
     #ifdef REDRELAY_DEVBUILD
         " DEVBUILD"+
@@ -851,45 +813,30 @@ void RedRelayServer::Start(uint16_t Port){
 				packet.SetType(11);
 				const char* tmp = packet.GetPacket();
                 DebugLog("Ping tick");
-                std::unordered_set<uint32_t> temp_set;
-                std::unordered_set<uint32_t> erase_set;
-                PeersPool.GetAllocated().swap(temp_set);
-				for (std::unordered_set<uint32_t>::iterator it = temp_set.begin(); it != temp_set.end(); ++it){
-                    uint16_t peerID = *it;
+				for (uint32_t i=0; i<PeersPool.Size(); ++i){
+                    uint16_t peerID = PeersPool.GetAllocated().at(i).index;
                     if (PeersPool[peerID].PingTries > 2){
                         DebugLog(std::to_string(peerID)+" | Ping timeout");
 						DropPeer(peerID);
-                        erase_set.insert(peerID);
 					} else {
 						if (PeersPool[peerID].PingTries > 0) {
-                            /*if (PeersPool[peerID].bytesSent/PingInterval > 8000){
-                                Log(std::to_string(peerID)+" | Kicked for traffic abuse", 12);
-                                DropPeer(peerID);
-                                continue;
-                            }*/
-                            PeersPool[peerID].bytesSent = 0;
-							DebugLog(std::to_string(peerID)+" | Ping request");
+							DebugLog(std::to_string(PeersPool.GetAllocated().at(i).index)+" | Ping request");
 							UdpSocket.send(tmp, 1, PeersPool[peerID].Socket->getRemoteAddress(), PeersPool[peerID].UdpPort);
 							PeersPool[peerID].Socket->send(tmp, packet.GetPacketSize());
 						}
 						PeersPool[peerID].PingTries++;
 					}
 				}
-				for (uint32_t i : erase_set) temp_set.erase(i);
-				PeersPool.GetAllocated().swap(temp_set);
-				//SetConsoleTitle(("RedRelay Server b10: "+std::to_string(PeersPool.Size())+" peers, "+std::to_string(ChannelsPool.Size())+" channels, "+std::to_string(GlobalBytesSent/PingInterval/1024)+" kb/s").c_str());
-                GlobalBytesSent = 0;
-                SaveFnaf();
 			}
-		} 
+		}
 	}
 	Log("Stopping the server...", 12);
     UdpSocket.unbind(); //this should have unblocked the UDP thread
 #ifdef REDRELAY_MULTITHREAD
     UdpThread.join(); //waiting for thread to close
 #endif
-	for (uint32_t ConnectionID : ConnectionsPool.GetAllocated()) delete ConnectionsPool[ConnectionID].Socket;
-	for (uint32_t PeerID : PeersPool.GetAllocated()) delete PeersPool[PeerID].Socket;
+	for (IndexedElement<Connection>&it : ConnectionsPool.GetAllocated()) delete it.element->Socket;
+	for (IndexedElement<Peer>&it : PeersPool.GetAllocated()) delete it.element->Socket;
 	ConnectionsPool.Clear();
 	PeersPool.Clear();
 	ChannelsPool.Clear();
@@ -906,9 +853,6 @@ RedRelayServer::~RedRelayServer(){
 
 void RedRelayServer::Stop(bool Block){
 	Running=false;
-    sf::UdpSocket sock;
-    char tmp = 0;
-    sock.send(&tmp, 1, sf::IpAddress::LocalHost, UdpSocket.getLocalPort());
 	if (Block) while(!Destructible) sf::sleep(sf::milliseconds(1));
 }
 
