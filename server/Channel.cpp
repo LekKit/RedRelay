@@ -53,6 +53,19 @@ uint16_t Channel::GetMasterID() const {
 	return Master;
 }
 
+bool Channel::HasPeer(uint16_t PeerID) const {
+    for (uint16_t peer : Peers) if (peer == PeerID) return true;
+	return false;
+}
+
+void Channel::ErasePeer(uint16_t PeerID){
+    for (uint32_t i=0; i<Peers.size(); ++i) if (Peers[i] == PeerID) Peers.erase(Peers.begin() + i);
+}
+
+void Channel::AddPeer(uint16_t PeerID){
+    Peers.push_back(PeerID);
+}
+
 //////////
 // Peer //
 //////////
@@ -83,6 +96,19 @@ const std::vector<uint16_t>& Peer::GetJoinedChannels() const {
 
 sf::IpAddress Peer::GetIP() const {
 	return Socket->getRemoteAddress();
+}
+
+bool Peer::IsInChannel(uint16_t ChannelID) const {
+    for (uint16_t channel : Channels) if (channel == ChannelID) return true;
+	return false;
+}
+
+void Peer::EraseChannel(uint16_t ChannelID){
+    for (uint32_t i=0; i<Channels.size(); ++i) if (Channels[i] == ChannelID) Channels.erase(Channels.begin() + i);
+}
+
+void Peer::AddChannel(uint16_t ChannelID){
+    Channels.push_back(ChannelID);
 }
 
 sf::TcpSocket Peer::defsocket;
