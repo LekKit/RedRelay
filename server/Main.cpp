@@ -1,6 +1,7 @@
 //Example RedRelay server
 #include "RedRelayServer.hpp"
 #include <fstream>
+#include <csignal>
 
 rs::RedRelayServer& Server = *new rs::RedRelayServer;
 std::fstream config;
@@ -78,6 +79,16 @@ void SetProp(const std::string& PropName, const std::string& PropVal){
     } else if (PropName == "WelcomeMessage") Server.SetWelcomeMessage(PropVal);
 }
 
+bool running = true;
+
+void sig_handler(int sigmask){
+    if (sigmask == SIGINT){
+        signal(SIGINT, exit);
+        running = false;
+        Server.Stop();
+    }
+}
+
 int main(){
     if (LoadConfig()){
         std::string tmp, PropName, PropVal;
@@ -122,9 +133,11 @@ int main(){
         config.close();
     }
 
-    while (true){ //In case of failure, retry every 5s
+    signal(SIGINT, sig_handler);
+    while (running){ //In case of failure, retry every 5s
         Server.Start(Port);
-        sf::sleep(sf::seconds(5));
+        if (running) sf::sleep(sf::seconds(5));
     }
+
     return 0;
 }

@@ -733,6 +733,12 @@ void RedRelayServer::Start(uint16_t Port){
 	signal(SIGPIPE, SIG_IGN); //Ignore writes to closed socket
         #endif
 	if (Callbacks.ServerStart!=NULL) Callbacks.ServerStart(Port);
+    Log(" ____          _ ____      _             ", 12);
+    Log("|  _ \\ ___  __| |  _ \\ ___| | __ _ _   _ ", 12);
+    Log("| |_) / _ \\/ _` | |_) / _ \\ |/ _` | | | |", 12);
+    Log("|  _ <  __/ (_| |  _ <  __/ | (_| | |_| |", 12);
+    Log("|_| \\_\\___|\\__,_|_| \\_\\___|_|\\__,_|\\__, |", 12);
+    Log("                                   |___/ ", 12);
 	Log(GetVersion() +
     #ifdef REDRELAY_DEVBUILD
         " DEVBUILD"+
@@ -850,11 +856,17 @@ void RedRelayServer::Start(uint16_t Port){
 
 RedRelayServer::~RedRelayServer(){
     Running=false;
+    sf::UdpSocket sock;
+    char tmp = 0;
+    sock.send(&tmp, 1, sf::IpAddress::LocalHost, UdpSocket.getLocalPort());
     while(!Destructible) sf::sleep(sf::milliseconds(1));
 }
 
 void RedRelayServer::Stop(bool Block){
 	Running=false;
+    sf::UdpSocket sock;
+    char tmp = 0;
+    sock.send(&tmp, 1, sf::IpAddress::LocalHost, UdpSocket.getLocalPort());
 	if (Block) while(!Destructible) sf::sleep(sf::milliseconds(1));
 }
 
