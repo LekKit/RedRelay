@@ -28,6 +28,7 @@
 
 #include <ctime>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <vector>
 #include "IDPool.hpp"
@@ -53,10 +54,10 @@ public:
     RelayPacket(std::size_t Size=65536);
     ~RelayPacket();
     void Reallocate(std::size_t newcapacity);
-    void SetType(const uint8_t Type);
-    void AddByte(const uint8_t Byte);
-    void AddShort(const uint16_t Short);
-    void AddInt(const uint32_t Int);
+    void SetType(uint8_t Type);
+    void AddByte(uint8_t Byte);
+    void AddShort(uint16_t Short);
+    void AddInt(uint32_t Int);
     void AddString(const std::string& String);
     const char* GetPacket();
     std::size_t GetPacketSize() const;
@@ -73,6 +74,7 @@ private:
     uint32_t packetsize=0;
     uint32_t buffbegin=0;
     sf::TcpSocket* Socket=&defsocket;
+    uint32_t IpAddr=0;
     uint16_t UdpPort=0;
     uint8_t PingTries=0;
     std::string Name;
@@ -89,6 +91,8 @@ public:
     const std::vector<uint16_t>& GetJoinedChannels() const;
     sf::IpAddress GetIP() const;
     bool IsInChannel(uint16_t ChannelID) const;
+    
+    uint32_t bytesSent = 0; // Darkwire server customisation
 };
 
 class Channel{
