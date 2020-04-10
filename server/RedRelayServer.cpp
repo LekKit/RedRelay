@@ -518,7 +518,7 @@ void RedRelayServer::ReceiveTcp(uint16_t PeerID){
 			Peer.buffbegin += 1+Peer.SizeOffset()+Peer.MessageSize();
 		}
 		if (Peer.buffbegin > 0 && Peer.buffbegin < 65536 && Peer.packetsize != 0){
-			memcpy(&Peer.buffer[0], &Peer.buffer[Peer.buffbegin], Peer.packetsize);
+			memmove(&Peer.buffer[0], &Peer.buffer[Peer.buffbegin], Peer.packetsize);
 		}
 		Peer.buffbegin=0;
 		break;
